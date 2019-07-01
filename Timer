@@ -1,0 +1,21 @@
+var Timer={
+  data:{},
+  start:function(key){
+    Timer.data[key]=new Date();
+  },
+  stop:function(key){
+    var time=Timer.data[key];
+    if(time)
+    Timer.data[key]=new Date()-time;
+  },
+  getTime:function(key){
+    return Timer.data[key];
+  }
+};
+// test
+Timer.start("div");
+for(var i=0;i< 100;i++){
+  document.write("div");
+}
+Timer.stop("div");
+console.log("the time is:"+Timer.getTime('div'));
