@@ -1,0 +1,72 @@
+var $Cookie = {
+  //添加cookie
+  addCookie:function (name, value, time) {//名字，值，超时时间--天(1d或者1D)、时(1h或者1H)、分(1m或者1M)、秒(1s或者1S);不区分大小写传入
+    var exp = new Date();
+    var strSec = $Cookie.getSec(time || '10m');
+    exp.setTime(exp.getTime() + strSec);//默认十分钟过期
+    //设置cookie的名称、值、失效时间
+    document.cookie = name + "=" + value + ";expires="+ exp.toUTCString();
+  },
+  getCookie:function (name) {//传入cookie 的名字，获取所有不传
+    //存下所有的Cookie
+    var allCookies = [];//为对象数组，对象属性为cookie的名字，值就是值
+    //获取当前所有cookie
+    var strCookies = document.cookie;
+    //截取变成cookie数组
+    var array = strCookies.split(';');
+    //循环每个cookie
+    for (var i = 0; i < array.length; i++) {
+      //将cookie截取成两部分
+      var item = array[i].split("=");
+      //判断cookie的name 是否相等
+      if(!name){
+        var obj = {};
+        obj[item[0]] = item[1];
+        allCookies.push(obj);
+        if(i == array.length - 1){
+          return allCookies
+        }
+        continue
+      }
+      if (item[0] == name) {
+        return item[1];
+      }
+    }
+    return null;
+  },
+  delCookie:function (name) {//删除cookie，可以传入单个，或者传入数组，不传则会清除所有
+    var dealCookie = function(key){
+      var exp = new Date();
+      exp.setTime(exp.getTime() - 1);//设置为上一秒，直接就过期了
+      var value = getCookie(key);
+      if (value != null) {
+        document.cookie = key + "=" + value + ";expires="+ exp.toUTCString();
+      }
+    };
+    if(!Array.isArray(name)){
+      name = [name];
+    }else if(!name){
+      name = Object.keys($Cookie.getCookie())
+    }
+    //循环每个Cookie名字，遍历处理
+    for (var i = 0; i < name.length; i++) {
+      dealCookie(name[i])
+    }
+  },
+  getSec:function(str){ //天(1d或者1D)、时(1h或者1H)、分(1m或者1M)、秒(1s或者1S);不区分大小写传入
+    var str1 = str.substr(0, str.length - 1);  //时间数值
+    var str2 = str.substr(str.length-1, 1);    //时间单位
+    if (str2 == "s") {
+      return str1 * 1000;
+    }
+    else if (str2 == "m") {
+      return str1 * 60 * 1000;
+    }
+    else if (str2 == "h") {
+      return str1 * 60 * 60 * 1000;
+    }
+    else if (str2 == "d") {
+      return str1 * 24 * 60 * 60 * 1000;
+    }
+  }
+};
