@@ -1,0 +1,37 @@
+clickOutSide.js:
+
+export default {
+  bind(el, binding, vnode) {
+    function documentHandler(e) {
+      if (el.contains(e.target)) {
+        return false;
+      }
+      if (binding.expression) {
+        binding.value(e);
+      }
+    }
+
+    el.__vueClickOutside__ = documentHandler;
+    document.addEventListener('click', documentHandler);
+  },
+  update() {
+
+  },
+  unbind(el, binding) {
+    document.removeEventListener('click', el.__vueClickOutside__);
+    delete el.__vueClickOutside__;
+  }
+};
+
+使用方法：
+在页面中引入 import clickOutSide from 'clickOutSide'
+  使用vue的自定义指令 directives 创建指令
+  directives:{//自定义指令 ，v-
+    clickOutSide
+  },
+  就可以在页面中使用v-clickOutSide 如：
+    <div v-if="isShow" v-clickOutSide="outSideFun"></div>
+  outSideFun就是点击此组件外部内容所执行的方法，例如你要点击外部关闭所注册的组件，即可以在outSideFun中执行：
+  outSideFun:function(){
+    this.isShow = false
+  }
