@@ -1,0 +1,1 @@
+    pointer-events: none; //事件穿透，不响应事件
