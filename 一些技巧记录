@@ -1,2 +1,2 @@
-    pointer-events: none; //事件穿透，不响应事件
+    pointer-events: none; //事件穿透，不响应事件，hover事件也可以阻止
     touch-action: none;//阻止手势事件
