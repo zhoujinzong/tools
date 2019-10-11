@@ -1,0 +1,19 @@
+<template>
+  <div>
+    组件B
+  </div>
+</template>
+<script>
+  import {findComponentUpward} from 'assist.js';\
+  
+  export defalut{
+    name: 'componentB',
+    mounted(){
+      const comA = findComponentUpward(this,'componentA');//两个参数，当前Vue对象 this，以及要找的组件名字，name
+      if(comA){
+        console.log(comA.name);//目标组件的名字
+        comA.sayHello();//目标组件的方法
+      }
+    }
+  }
+</script>
