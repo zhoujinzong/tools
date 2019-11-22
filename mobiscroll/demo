@@ -1,0 +1,218 @@
+<template>
+  <div id="cascade" v-show="LCD ==1 && ShowModal">
+    <div style="margin-top: 30px; text-align: center;" class="cascade" v-html="render_tree(data_list,true)"></div>
+  </div>
+</template>
+<script>
+  import "../plugin/cascade/mobiscroll-2.13.2.full.min";
+  export default {
+  name: "cascade",
+  data() {
+    return {
+      selected: [],//选中的值
+    }
+  },
+  props: {
+    isShow:{
+      type: Boolean,
+      default: false,
+    },
+    data_list:{
+      type: Array,
+      default: function () {
+        return [
+          // {name:'',value: 1,children:[]} //数据格式，children属性名字可有可无，若设定children无，则在无children时，宽度会随内容变化
+        ]
+      }
+    },
+    defaultValue: {
+      default:function () {
+        return ""
+      }
+    },
+    headerText: {
+      type: String,
+      default: '请选择'
+    }
+  },
+  computed: {
+    ShowModal: {
+      get: function() {
+        return this.isShow;
+      },
+      set: function(value) {
+        if (!value) {//清除的时候
+          $("#areaList").mobiscroll("destroy"); //清除一下
+          this.$emit('returnData', false);//通知父组件关闭了
+        }
+      }
+    },
+    flag:{
+      get: function() {
+        return this.data_list.length === 0
+      },
+      set: function(value) {
+      }
+    }
+  },
+  watch: {
+    isShow: function(val, oldVal) {
+      if (val) {
+        this.initMobiScroll();
+        $(".ui-input").click(); //插件会自己生成一个input，需要隐藏，主动去执行一下这个点击事件
+      } else {
+        $("#areaList").mobiscroll("destroy"); //清除一下，二次清理，防止未清除干净
+        this.$emit('returnData', false);//通知父组件关闭了
+      }
+    },
+  },
+  created: function() {
+  },
+  mounted() {
+  },
+  methods: {
+    setData() {
+      //将数据传给vuex，设备监控页面在lcd下，监听数据，从而显示页面
+      let VM = this;
+      // if (VM.flag) {
+      //   return;
+      // }
+      this.$emit('returnData',VM.selected)
+    },
+    initMobiScroll: function() {
+      var VM = this;
+      $("#areaList")
+        .mobiscroll()
+        .treelist({
+          theme: "android-holo-light", //样式
+          lang: "zh", //语言
+          display: "modal", //指定显示模式
+          fixedWidth: [300], //每一列滚动框的宽度,也可以单独设置每一列
+          // placeholder: '请选择开户行地区',//placeholder
+          closeOnOverlay: false, //点击阴影是否关闭弹窗
+          inputClass: "ui-input", //为插件生成的input添加样式
+          inputName: "111",
+          btnClass: "", //设置按钮显示的样式
+          // labels: ['省', '市'],
+          cancelText: "取消", //取消文字
+          setText: "确定", //确定文字
+          headerText: function(valueText) {
+            return VM.headerText;
+          },
+          rows: 5, //滚动区域内的行数
+          // showLabel:true,//是否显示labels
+          defaultValue: VM.defaultValue, //设置初始值，第一个值为li节点下标
+          formatResult: function(array) {
+            //返回自定义格式结果 array组成，每一列的下标 ，这段代码无用！！！
+            // console.log(array);
+            var select = [];
+            for (let i = 0; i < array.length; i++) {
+              var jquery_action = $("#areaList>li").eq(array[0]);
+              var child_str = 'ul>li';
+              var child_str_arr = [];
+              for (let j = 0; j <= i - 1 ; j++) {
+                child_str_arr.push(child_str);
+              }
+              if (child_str_arr.length === 0) {
+                select.push(jquery_action.attr('data-val'));
+              }else{
+                select.push(jquery_action.find(child_str_arr.join('>')).eq(array[i]).attr('data-val'));
+              }
+            }
+            // VM.selected = select;
+          },
+          onDestroy: function(inst) {
+            //当miboscroll实例被destoroy的时候回调
+          },
+          onClose: function(valueText, inst) {
+            //当list关闭的时候执行的回调函数
+            VM.ShowModal = false;
+          },
+          onShow: function() {
+            var s = $("div.dwb-s").html(),
+              c = $("div.dwb-c").html();
+            //dialog显示的内容
+            $("div.dwbw").each(function(i, dom) {
+              var that = $(this);
+              //将确定按钮与取消按钮交换位置
+              if (that.hasClass("dwb-s")) {
+                that.removeClass("dwb-s").addClass("dwb-c");
+                that.html(c);
+              } else {
+                that.removeClass("dwb-c").addClass("dwb-s");
+                that.html(s);
+              }
+            });
+          },
+          onBeforeClose: function(valueText, btn, inst) {
+            //在list关闭之前执行，如果返回false则不会关闭list。
+            // console.log(valueText, btn, inst);
+          },
+          onCancel: function(valueText, inst) {
+            //点击取消
+            VM.ShowModal = false;
+            // console.log(valueText, inst);
+          },
+          onChange: function(valueText, inst) {
+            // console.log(valueText, inst);
+          },
+          onSet: function(event, inst) {
+            // console.log(event, inst);
+          },
+          onSelect: function(valueText, inst) {
+            // console.log("value:", inst.values);
+            VM.selected = inst.values;
+            VM.setData();
+            VM.ShowModal = false;
+          },
+          onBeforeShow: function(inst) {
+            // console.log(inst);
+          }
+        });
+    },
+    render_tree:function (list,boo) {
+      var VM = this;
+      var li_list = [];
+      if (!list || list.length === 0){
+        li_list.push( `<li data_val="-1">
+              <span>暂无数据</span>
+            </li>`)
+      }else {
+        list.forEach((child,index) =>{
+          if (child.children) {
+            li_list.push(
+              `<li data-val="${child.value}">
+              <span>${child.name}</span>
+              ${VM.render_tree(child.children)}
+            </li>`
+            );
+          }else{
+            li_list.push(
+              `<li data-val="${child.value}">
+              <span>${child.name}</span>
+            </li>`
+            );
+          }
+        });
+      }
+      return `<ul id="${boo?'areaList':''}" style="display: ${boo?'none':'block'};">${li_list.join('')}</ul>`
+    },
+  }
+};
+</script>
+<style>
+@import "../plugin/cascade/mobiscroll-2.13.2.full.min.css";
+</style>
+<style scoped>
+.cascade {
+  width: 400px;
+  height: 200px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.ui-input {
+  display: none !important;
+}
+</style>
