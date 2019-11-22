@@ -4,7 +4,7 @@
   </div>
 </template>
 <script>
-  import "../plugin/cascade/mobiscroll-2.13.2.full.min";
+  import "mobiscroll-2.13.2.full.min";
   export default {
   name: "cascade",
   data() {
