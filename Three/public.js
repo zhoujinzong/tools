@@ -5,6 +5,7 @@
 
 import "../plugin/Validform_v5.3.2_min.js";
 import {popWin} from "../plugin/tc.all.js";
+import base64 from "../plugin/base64.min.js";
 
 var MYHumeURL='';
 var TimerArray = {},FuncArray = {};
@@ -36,14 +37,27 @@ function clearTimers_rule(){//清除所有循环、清空删除页面循环
 }
 
 export const ifNullData=function(data){//判断是否为空
-  if(data!=null && data!= "undefined" && data!= undefined && data.length!=0){
+
+  if(data!=null && data!== "undefined" && data!== undefined && data!=='' && data !== false){
     if(typeof data == 'object'){
-      return $.isEmptyObject(data);
+      if ($.isArray(data)){//数组
+        return data.length === 0;
+      } else {//对象
+        return $.isEmptyObject(data)
+      }
     }
     return false;
   }else{
     return true;
   }
+  // if(data!=null && data!= "undefined" && data!= undefined && data.length!=0){
+  //   if(typeof data == 'object'){
+  //     return $.isEmptyObject(data);
+  //   }
+  //   return false;
+  // }else{
+  //   return true;
+  // }
 };
 export const pop_create_rule=function(idn, cotainer, title, type, pIdn){
   $("#"+idn).remove();
@@ -122,9 +136,33 @@ export const validform_init=function(form,idn){//表单验证
         }
         return input_lenght_limit(form,gets,obj,ll);
       },
+      "checkname": function(gets,obj,curform,regxp){//名称 ：中文、英文 数字 _ -
+        var form=/^[\u4e00-\u9fa5A-Za-z0-9-_ ~@\+\(\)（）￥\$&;；\.。,，、]+$/;
+        var ll=64;
+        if(!ifNullData(obj.attr('maxN'))){
+          ll=obj.attr('maxN');
+        }
+        return input_lenght_limit(form,gets,obj,ll);
+      },
       "describeText": function(gets,obj,curform,regxp){//备注 //限制'"
         var form=/^[^\r\'\"\?]*$/;
         return  input_lenght_limit(form,gets,obj,obj.attr('maxN'),2);
+      },
+      "passageLimitMmLimit": function(gets,obj,curform,regxp){//  密码;带限制长度
+        var lim = [];
+        if (obj.attr("mmLimit")){
+          lim = obj.attr("mmLimit").split("#");
+        }
+        var min = lim[0] || 1;
+        var max = lim[1] || 32;
+        var form1 = `[0-9a-zA-Z~!@#$%^&*,_]{${min},${max}}$`;
+        var reg = new RegExp("^"+ form1);
+        if(gets.match(reg)){
+          return true;
+        }else{
+          obj.attr("errormsg",`密码应为字母或数字且长度在${min}到${max}个字符之间！`);
+          return false;
+        }
       },
       "passageLimit" : /^[0-9a-zA-Z~!@#$%^&*,_]{1,32}$/,  //  密码;
       "passageLimit2":function(gets,obj){
@@ -165,6 +203,15 @@ export const validform_init=function(form,idn){//表单验证
       },
       "Float1":/^[\-\+]?\d+(\.\d)?$/,//正负数字1.0
       "positiveNum":/^(?!(0[0-9]{0,}$))[0-9]{1,}[.]{0,}[0-9]{0,}$/,//大于0正数
+      "Intergernumber":function(gets,obj){//大于0的正整数
+        var reg=/^\+?[1-9]\d*$/;;
+        if(gets.match(reg)){
+          return true;
+        }else{
+          obj.attr("errormsg",'请输入大于0的整数！');
+          return false;
+        }
+      },
       "PUEnumber":function(gets,obj){
         var reg=/^(?!(0[0-9]{0,}$))[0-9]{1,}[.]{0,}[0-9]{0,}$/;
         if(gets.match(reg)){
@@ -226,17 +273,27 @@ export const validform_init=function(form,idn){//表单验证
       "Numberlimit" ://整数  最小值-最大值
         function(gets,obj,curform,regxp){
           var form1 = /^(^-?\d+$)$/;//正负数字
-          return mmLimit_rule(gets,obj,form1);
+          return mmLimit_rule(gets,obj,form1,10);
         },
-        "Numberlimit2"://小数 最小值-最大值
+      "Numberlimit2"://小数 最小值-最大值
         function(gets,obj,curform,regxp){
           var form1=/^[\-\+]?(0|[1-9]\d*)(\.\d{0,2})?$/;
-          return mmLimit_rule(gets,obj,form1);
+          obj.attr("seconderrormsg",'，保留0-2位小数');
+          return mmLimit_rule(gets,obj,form1,9);
         },
       "integerLim":function(gets,obj,curform,regxp){//整数大小限制
         var form1 = /^(^-?\d+$)$/;//正负数字
         if(gets.match(form1)){
           return mmLimit_rule(gets,obj,form1);
+        }else{
+          obj.attr("errormsg",'请输入整数！');
+          return false;
+        }
+      },
+      "integerNoLim":function(gets,obj,curform,regxp){//整数无限制
+        var form1 = /^(^-?\d+$)$/;//正负数字
+        if(gets.match(form1)){
+          return true;
         }else{
           obj.attr("errormsg",'请输入整数！');
           return false;
@@ -248,6 +305,14 @@ export const validform_init=function(form,idn){//表单验证
           return get_ip_normal_form(gets);
         }
         return false;
+      },
+      "MACaddress":function(gets,obj,curform,regxp){
+        var reg=/^[A-F0-9]{2}(:[A-F0-9]{2}){5}$/;
+        if(gets.match(reg)){
+          return true
+        }else{
+          return false
+        }
       },
       "searchname": function(gets,obj,curform,regxp){//根据姓名搜索，可以为空
         if(gets==""){
@@ -275,6 +340,25 @@ export const validform_init=function(form,idn){//表单验证
         function(gets,obj,curform,regxp){
           var form1 = /^[\-\+]?\d+(\.\d{0,2})?$/;//正负数字1.00
           return mmLimit_rule(gets,obj,form1);
+        },
+      "NumberFloat2No0" ://小数点2位  最小值-最大值，不能为0
+        function(gets,obj,curform,regxp){
+          var form1 = /^[\-\+]?\d+(\.\d{0,2})?$/;//正负数字1.00
+          if (gets == 0){
+            obj.attr("errormsg",'不能为0');
+            return false
+          }
+          return mmLimit_rule(gets,obj,form1);
+        },
+      "NumberFloatNoLim" ://小数点2位 无限制大小
+        function(gets,obj,curform,regxp){
+          var form1 = /^[\-\+]?\d+(\.\d{0,2})?$/;//正负数字1.00
+          obj.attr("errormsg",'请输入0-2位小数');
+          if(gets.match(form1)){
+            return true
+          }else{
+            return false
+          }
         },
       "NumberFloat" ://小数点一位  最小值-最大值
         function(gets,obj,curform,regxp){
@@ -315,6 +399,7 @@ export const validform_init=function(form,idn){//表单验证
           var form1 = /^[\-\+]?\d+(\.\d{0,2})?$/;//正负数字1.00
           return mmLimit_rule(gets,obj,form1,1);
         },
+
       "integerMax" ://正负整数  上限
         function(gets,obj,curform,regxp){
           var form1 = /^-?[0-9]\d*$/;//正负数字
@@ -394,7 +479,14 @@ export const validform_init=function(form,idn){//表单验证
       "maskNormal" :
         /^(254|252|248|240|224|192|128|0)\.0\.0\.0|255\.(254|252|248|240|224|192|128|0)\.0\.0|255\.255\.(254|252|248|240|224|192|128|0)\.0|255\.255\.255\.(254|252|248|240|224|192|128|0)$/ ,//子网掩码
       "cardNum":/^[0-9]{1,12}$/, //卡号，输入1-12位数字/字母
-      "cardNum1":/^[0-9]{1,9}$/, //卡号，输入1-9位数字/字母 2019年8月9日15:46:33 修改 zjz
+      "cardNum1"://卡号，输入1-10位数字 2019年11月26日11:28:55 修改 zjz
+        function(gets,obj,curform,regxp){
+          var form1=/^[0-9]{1,10}$/;
+          if (gets.match(form1)){
+            return mmLimit_rule(gets,obj,form1);
+          }
+          return false
+        },
       "userNum":/^[0-9]{1,8}$/, //编号，输入1-8位数字
       "userNumlimit" ://整数  最小值-最大值
         function(gets,obj,curform,regxp){
@@ -444,9 +536,61 @@ export const validform_init=function(form,idn){//表单验证
         return numselected>=need?true:"至少选择"+need+"项";
       },
       "channelNum":/^([1-9]|[1][0-6])$/,
+      "AllCode":function(gets,obj,curform,regxp){//各种编码  数字 字母 下划线
+        var reg =/^[0-9a-zA-Z-_]{1,32}$/;
+        if(Number(obj.attr('canNull'))&&gets.length===0){
+          return true
+        }else if(gets.match(reg)){
+          return true;
+        }else{
+          obj.attr("errormsg",'请填写正确格式0-9a-zA-Z-_');
+          return false;
+        }
+      },
+      "Size":function(gets,obj,curform,regxp){//尺寸
+        var reg =/^[0-9x]{0,32}$/;
+        if(gets.match(reg)){
+          return true;
+        }else{
+          obj.attr("errormsg",'请填写正确格式!');
+          return false;
+        }
+      },
+      "Exterior" :function(gets,obj,curform,regxp){//外观
+        var reg =/^[A-Za-z0-9]{0,32}$/;
+        if(gets.match(reg)){
+          return true;
+        }else{
+          obj.attr("errormsg",'长度在0到32个字符之间');
+          return false;
+        }
+      },
+      "NumberlimitNull"://小数 最小值-最大值 可以为空
+        function(gets,obj,curform,regxp){
+          var form1=/^[\-\+]?(0|[1-9]\d*)(\.\d{0,2})?$/;
+          if(gets.length===0){
+            return true
+          }
+          return mmLimit_rule(gets,obj,form1);
+        },
       "email":function (gets,obj,curform,regxp) {//邮箱验证
         var form1=/^(\w)+(\.\w+)*@(\w)+((\.\w+)+)$/;
         return notNull_rule(gets,obj,form1);
+      },
+      "NotEmpty":function (gets,obj,curform,regxp) {//不能为空
+        return gets !== ""
+      },
+      "community":function(gets,obj,curform,regxp){
+        var form=/^[0-9a-zA-Z-]{1,20}$/;
+        return !!gets.match(form);
+      },
+      "wifiPassword":function(gets,obj,curform,regxp){//8 ~20 1、长度8 ~20 2、允许字母（大写或者小写） 3、允许数字 4、允许特殊字符 ~!@#$%^&*()[]{}?+-_ 5、不允许空格 = ' " 6、可以为空
+        if (gets === ""){
+          return true
+        }
+        var form=/^[0-9a-zA-Z~!@#$%^&*()\[\]{}?+\-_]{8,20}$/;
+        obj.attr("errormsg",'密码应为字母或数字且长度在8到20个字符之间！');
+        return !!gets.match(form);
       },
     }
   });
@@ -553,7 +697,11 @@ export const mmLimit_rule=function(gets,obj,form1,flag){
       min=Number(min).toFixed(nn);
       max=Number(max).toFixed(nn);
     }
-    obj.attr("errormsg",'数据范围:'+min+"-"+max + (seconderrormsg || ''));
+    var NumberTips = '';
+    if (flag === 10){//表示需要提示输入整数
+      NumberTips = '请输入整数，';
+    }
+    obj.attr("errormsg",NumberTips + '数据范围:'+min+"-"+max + (seconderrormsg || ''));
     obj.attr("nullmsg",'不能为空');//不能为空
     if(gets.match(form1) && Number(gets)>=min && Number(gets)<=max){
       return true;
@@ -605,11 +753,13 @@ export const validform_wrong_tip=function(msg,idn,o,cssctl){
     cssctl(valid_tip.find(".Validform_checktip"),o.type);
     var left=o.obj.position().left;
     var top=o.obj.position().top;
+    var right =o.obj.position().right;
     valid_tip.css({
       left:left,
-      top:top-25
+      top:top-25,
+      right:right,
     }).show();
-    setTimeout(function(){valid_tip.fadeOut(200);},1000);
+    setTimeout(function(){valid_tip.fadeOut(200);},2000);
   }
 };
 export const get_ip_normal_form=function(gets){
@@ -859,11 +1009,17 @@ export const FontListener=function (VM) {//文字大小自适应 兼容ie8
   var docEl = doc.documentElement;
   var resizeEvt = 'orientationchange' in window ? 'orientationchange' : 'resize';//orientationchange 用户水平或者垂直翻转设备
   var recalc = function () {
-    if(VM.LCD==0){//PC
+    if(LCD === 0){
       var fontS=rem_scal(20);
       $("body").removeClass().addClass('Window_'+docEl.clientWidth).attr('clientWidth',docEl.clientWidth);
       docEl.style.fontSize = Math.round(fontS)+ 'px';
     }else{//液晶屏
+      docEl.style.fontSize = '20px';
+      return;//液晶屏禁用字体大小自适应
+      if (!$Cookie.getCookie('CGISID')){//如果是未登录状态，不用加自适应，液晶屏登录页面键盘弹出问题
+        $('html').removeAttr('style');
+        return
+      };
       var clientWidth = docEl.clientWidth/ 1280;
       var clientHeight = docEl.clientHeight/ 800;
       if (!clientWidth || !clientHeight) return;
@@ -1048,6 +1204,9 @@ export const mainD_position_device=function(positon,positon_type,device){//获�
       case 32:
         positonArray='氢气传感器';
         break;
+      case 33:
+        positonArray='漏水定位控制器';
+        break;
       default:
         positonArray='无';
         break;
@@ -1061,7 +1220,52 @@ export const mainD_position_device=function(positon,positon_type,device){//获�
   }
   return source;
 };
-
+export const DEVICE_TYPE_ENUM = {//设备类型对应枚举
+  DEV_ID_UPS: 1,    // 1 UPS设备
+  DEV_ID_BMS: 2,           // 2 电池监控系统
+  DEV_ID_PRECISION_AIR: 3, // 3 精密空调
+  DEV_ID_COMMON_AIR: 4,    // 4 普通空调,485
+  DEV_ID__PDM_ELECT_METER: 5,   // 5 电量仪PDM, ELECTRICITY_METER,485
+  DEV_ID_PDU: 6,           // 6 智能PDU,485
+  DEV_ID_TEMP_HUMI: 7,     // 7 th温湿度,485
+  DEV_ID_DIST_SWITCH: 8,   // 8 sw开关检测模块，输入开关量
+  DEV_ID_RELAY: 9,         // 9 继电器，输出开关量
+  DEV_ID_IO_MODULE: 10,     // 10 远程开关量模块
+  DEV_ID_USELESS2: 11,
+  DEV_ID_PDC: 12,           // 12 配电柜
+  DEV_ID_SWITCH_POWER: 13,  // 13 开关电源
+  DEV_ID_HVDC: 14,          // 14 高压直流
+  DEV_ID_VIDEO: 15,        // 15 视频模块
+  DEV_ID_EGUARD: 16,        // 16 门禁
+  DEV_ID_GSM: 17,          // 17 移动通信模块，短信模块
+  DEV_ID_INVERTER: 18,      // 18 逆变器
+  DEV_ID_ATS: 19,           // 19 ATS
+  DEV_ID_VESDA: 20,         // 20 极早期
+  DEV_ID_FIRE_CONTROL: 21,  // 21 消防
+  DEV_ID_COLLECTOR: 22,    // 22 数据采集器,串口服务器
+  DEV_ID_SWITCH_BOARD: 23,  // 23 交换机
+  DEV_ID_HMI: 24,           // 24 触摸屏，HMI 7寸触摸屏,485
+  DEV_ID_EMAIL: 25,         // 25 邮件模块
+  DEV_ID_CAMERA: 26,        // 26 摄像头
+  DEV_ID_BAT_GROUP: 27,     // 27 电池组
+  DEV_ID_PRESSURE_TRANS: 28,// 28 微差压变送器
+  DEV_ID_SYS: 29,           // 29 系统
+  DEV_ID_WISEWAY: 30,       // 30 SNMP卡
+  DEV_ID_ROOM_AIR: 31,      // 31 房级空调
+  DEV_ID_HYDROGEN_SENSOR: 32,      // 32 氢气传感器
+};
+export const cabinet_type = {
+    100:'无效柜',
+    101:'管控柜',
+    102:'配电柜',
+    103:'HVDC',
+    104:'电池柜',
+    105:'空调柜',
+    106:'用户机柜',
+    113:'冷水柜',
+    116:'一体化柜',
+    117:'综合柜',
+};
 export const alarmLevel_get_ajax=function(VM){//获取所有告警等级的配置 公共接口
   return VM.$axios({
     method:"POST",
@@ -1119,11 +1323,10 @@ export const mima_check_ajax=function(VM,func,ss){
   if(VM.$store.state.ifMimaUse!=0) {//启用密码验证
     check_popready(VM,{
       'id':'detail_common_caozuo',
-      'html':'<span class="more_midwin">'+
-                VM.$t('lang._COMMOM_WARNING_PASSWORD_')+
-                ':<input type="password" name="MiMaPassword" id="MiMaPassword">' +
-                '<p class="text_red" id="mima_wrong" style="display:none"></p>' +
-            '</span>',
+      'html':'<span class="more_midwin">'+'请输入当前账户密码'+
+        ':<input type="password" name="MiMaPassword" id="MiMaPassword">' +
+        '<p class="text_red" id="mima_wrong" style="display:none"></p>' +
+        '</span>',
       'close':false,
       'func':function(){
         var pwd=$("#MiMaPassword").val();
@@ -1132,10 +1335,14 @@ export const mima_check_ajax=function(VM,func,ss){
         if(ifNullData(pwd) || !pwd.match(/^[0-9a-zA-Z-]{1,32}$/)){
           idn_wrong.html('密码格式错误').show();
         }else{
+          var message = base64.btoa(VM.$store.state.userName + ':' + $.md5(pwd));
+          var setData = {
+            auth: message,
+          };
           VM.$axios({
             method:"POST",
-            url:pubicLocator+"UsermanageManager/check_pwd",
-            data:{"pwd":$.md5(pwd)}
+            url:"/sys.cgi/login",
+            data: setData,
           }).then(function(data){
             if(data.code==0){
               $("#detail_common_caozuo,.maskLayer[pid=detail_common_caozuo]").remove();
@@ -1152,7 +1359,7 @@ export const mima_check_ajax=function(VM,func,ss){
     if(arg==3){//可以删除多选
       var text="";
       if(ss==0){
-        text='确认删除';
+        text='确认删除？';
       }else{
         text=ss;
       }
@@ -1248,12 +1455,16 @@ export const chart_getTextColor=function(value,status,fix){
   }
 };
 export const get_sys_pub_time=function(){//获取当前系统时间
-  var tt=$("#headerTime").html();
+  var time_id = 'headerTime';
+  if (LCD===1){
+    time_id = 'lcd_headerTime_hidden'
+  }
+  var tt = $("#" + time_id).html() || new Date().toLocaleString().replace(/\//g,'-').replace(/\s[上下]午/, ' ').replace(/:\d{2}$/, '');
   return {
-    val:tt, //2019-10-10 12:00
-    number:getTimeNumber(tt), //1232324
-    date:tt.split(' ')[0], //2019-10-10
-    time:tt.split(' ')[1] //12:00
+    val: tt, //2019-10-10 12:00
+    number: getTimeNumber(tt), //1232324
+    date: tt.split(' ')[0], //2019-10-10
+    time: tt.split(' ')[1]  //12:00
   }
 };
 
@@ -1269,13 +1480,18 @@ export const data_form_create=function(startTime,endTime){
 };
 //日期初始化  相差七天 yyyy-MM-dd
 export const begin_overdate_init=function(Message){
-  var defaultMess={dayNum:(Message && Message.dayNum) || 7, daytype: (Message && Message.daytype) || 'YYYY-MM-DD'};
+  var defaultMess={dayNum:(!ifNullData(Message) && !ifNullData(Message.dayNum)) ? Message.dayNum : 7,
+    daytype: (!ifNullData(Message) && !ifNullData(Message.daytype) && Message.daytype) || 'YYYY-MM-DD'};
   var ttt=get_sys_pub_time().number;
   var myDate = new Date(parseInt(ttt) * 1000);
   var mytime =get_sys_pub_time().date;
   var date;
   if(defaultMess.daytype=='YYYY-MM-DD'){
-    date = new Date(myDate.getTime() - (Number(defaultMess.dayNum)-1) * 24 * 3600 * 1000);//相差..天
+    var left = (Number(defaultMess.dayNum) -1) * 24 * 3600 * 1000;
+    if (Number(defaultMess.dayNum) === 0) {
+      left = 0;
+    }
+    date = new Date(myDate.getTime() - left);//相差..天
     var myget_begindate=date.getDate();
     var myget_beginmonth=date.getMonth()+1;
     date = date.getFullYear()+"-"+ten_check(myget_beginmonth)+"-"+ten_check(myget_begindate);//结束日期
@@ -1305,6 +1521,7 @@ export const begin_overdate_init=function(Message){
 };
 //dataMax:总条数   pageNum：一页展示的最大条数
 export const cal_pageNum=function(dataMax,pageNum){
+  dataMax = dataMax || 0;//防止后台未返回最大值字段
   var pcout=Math.ceil(dataMax / pageNum);//总页数
   if(pcout==0){pcout=1}
   return pcout;
@@ -1448,69 +1665,69 @@ export const small_popwindow_ajax=function(Info,eventID){//获取二级弹窗确
 
 //显示上传文件名
 export const Fileaction=function(){
-    $(".inputFile").unbind("change").bind("change",function(){
-      var filePath=$(this).find("input[type='file']").val();
-      $(this).prev("input[type=text]").val(filePath)
-    });
-  };
+  $(".inputFile").unbind("change").bind("change",function(){
+    var filePath=$(this).find("input[type='file']").val();
+    $(this).prev("input[type=text]").val(filePath)
+  });
+};
 
-  //***计算字节   getBytesCount(str) ***获得n字节的字符串   getBytesCount(str,n)
+//***计算字节   getBytesCount(str) ***获得n字节的字符串   getBytesCount(str,n)
 export const getBytesCount=function(str,n) {
-    var bytesCount = 0;
-    var result;
-    var num;
-    if(arguments.length==2){
-      num=n+1;
-    }else{
-      num=0;
-    }
-    if (str != null) {
-      for (var i = 0; i < str.length; i++) {
-        var c = str.charAt(i);
-        if (/^[\u0000-\u00ff]$/.test(c)) {
-          bytesCount += 1;
-          if(bytesCount<num){
-            result=str.substring(0,bytesCount);
-          }
-        } else {
-          bytesCount += 2;
-          if(bytesCount<num){
-            result=str.substring(0,bytesCount/2);
-          }
+  var bytesCount = 0;
+  var result;
+  var num;
+  if(arguments.length==2){
+    num=n+1;
+  }else{
+    num=0;
+  }
+  if (str != null) {
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charAt(i);
+      if (/^[\u0000-\u00ff]$/.test(c)) {
+        bytesCount += 1;
+        if(bytesCount<num){
+          result=str.substring(0,bytesCount);
+        }
+      } else {
+        bytesCount += 2;
+        if(bytesCount<num){
+          result=str.substring(0,bytesCount/2);
         }
       }
     }
-    if(arguments.length==2){
-      return result;
-    }else{
-      return bytesCount;
-    }
-  };
+  }
+  if(arguments.length==2){
+    return result;
+  }else{
+    return bytesCount;
+  }
+};
 
-  //检测浏览器及版本号
+//检测浏览器及版本号
 export const getExplorerInfo=function () {//判断浏览器及版本号
-    var explorer = window.navigator.userAgent.toLowerCase() ;
-    if (explorer.indexOf("msie") >= 0) {//ie 旧版本
-       var ver=explorer.match(/msie ([\d.]+)/)[1];
-       return {type:"IE",version:ver};
-    }else if(explorer.indexOf("Windows NT 6.1; Trident/7.0;")>=0){//IE edge
-      return {type:"IEedge",version:""};
-    }else if (explorer.indexOf("firefox") >= 0) {//firefox
-       var ver=explorer.match(/firefox\/([\d.]+)/)[1];
-       return {type:"Firefox",version:ver};
-    }else if(explorer.indexOf("chrome") >= 0){//Chrome
-       var ver=explorer.match(/chrome\/([\d.]+)/)[1];
-        return {type:"Chrome",version:ver};
-    }else if(explorer.indexOf("opera") >= 0){//Opera
-      var ver=explorer.match(/opera.([\d.]+)/)[1];
-      return {type:"Opera",version:ver};
-    }else if(explorer.indexOf("Safari") >= 0){//Safari
-      var ver=explorer.match(/version\/([\d.]+)/)[1];
-      return {type:"Safari",version:ver};
-    }else{
-      return {type:"",version:""};
-    }
-  };
+  var explorer = window.navigator.userAgent.toLowerCase() ;
+  if (explorer.indexOf("msie") >= 0) {//ie 旧版本
+    var ver=explorer.match(/msie ([\d.]+)/)[1];
+    return {type:"IE",version:ver};
+  }else if(explorer.indexOf("Windows NT 6.1; Trident/7.0;")>=0){//IE edge
+    return {type:"IEedge",version:""};
+  }else if (explorer.indexOf("firefox") >= 0) {//firefox
+    var ver=explorer.match(/firefox\/([\d.]+)/)[1];
+    return {type:"Firefox",version:ver};
+  }else if(explorer.indexOf("chrome") >= 0){//Chrome
+    var ver=explorer.match(/chrome\/([\d.]+)/)[1];
+    return {type:"Chrome",version:ver};
+  }else if(explorer.indexOf("opera") >= 0){//Opera
+    var ver=explorer.match(/opera.([\d.]+)/)[1];
+    return {type:"Opera",version:ver};
+  }else if(explorer.indexOf("Safari") >= 0){//Safari
+    var ver=explorer.match(/version\/([\d.]+)/)[1];
+    return {type:"Safari",version:ver};
+  }else{
+    return {type:"",version:""};
+  }
+};
 
 
 /*浏览按钮初始化*/
@@ -1539,20 +1756,58 @@ export const mainchart_WH_init=function(maxN,idn,w_Scal,h_scal){
     setTimeout(function(){$(".loading_main").hide();},200)
   }
 };
-export const record_export_rule=function(func){//导出（本地、USB）
-  if(LCDFLAG!='LCD'){//pc本地+USB
-    var html='<option value="0">本地</option><option value="1">主机USB</option>';
-    save_popready(0,'导出到：<select id="reHisExp_Type">'+html+'</select>',function(){
-      func($("#reHisExp_Type").val());
-    },2);
+// export const record_export_rule=function(func){//导出（本地、USB）
+//   if(LCDFLAG!='LCD'){//pc本地+USB
+//     var html='<option value="0">本地</option><option value="1">主机USB</option>';
+//     save_popready(0,'导出到：<select id="reHisExp_Type">'+html+'</select>',function(){
+//       func($("#reHisExp_Type").val());
+//     },2);
+//   }else{//液晶屏只有导出到USB
+//     func(1);
+//   }
+// };
+
+// export const record_export_rule2=function(func){//导出（本地FLASH、SD卡、USB）
+//   if(LCDFLAG!='LCD'){//pc本地+USB
+//     var html='<option value="0">本地电脑</option><option value="1">SD卡</option><option value="2">移动硬盘/U盘</option>';
+//     save_popready(0,'导出到：<select id="reHisExp_Type">'+html+'</select>',function(){
+//       func($("#reHisExp_Type").val());
+//     },2);
+//   }else{//液晶屏只有导出到USB
+//     func(3);
+//   }
+// };
+// export const record_export_rule3=function(func){//导出（SD卡、USB）
+//   if(LCDFLAG!='LCD'){//pc本地+USB
+//     var html='<option value="1">SD卡</option><option value="2">移动硬盘/U盘</option>';
+//     save_popready(0,'导出到：<select id="reHisExp_Type">'+html+'</select>',function(){
+//       func($("#reHisExp_Type").val());
+//     },2);
+//   }else{//液晶屏只有导出到USB
+//     func(2);
+//   }
+// };
+
+export const record_export_rule_design=function(func,options,lcdValue=0){ //自定义导出，以后用这个，上面的慢慢废弃 options=[{name:usb,value:0}],lcdValue：液晶屏模式导出到USB的值
+  if(LCD != 1){
+      let html='';
+      for(let i=0;i<options.length;i++){
+         html+=`<option value="${options[i].value}">${options[i].name}</option>`;
+         save_popready(0,'导出到：<select id="reHisExp_Type">'+html+'</select>',function(){
+          func(Number($("#reHisExp_Type").val()));
+        },2);
+      }
   }else{//液晶屏只有导出到USB
-    func(1);
+    func(Number(lcdValue))
   }
 };
 
+
 export const check_popready=function(VM,obj){
   var func=obj['func'] || function(){};
+  var closeFunc=obj['closeFunc'] || function(){};
   var close=obj.hasOwnProperty('close') || false;
+
   var html=obj['html'] || '<span  class="midwin" >'+(obj['text']||'')+'</span>';
   pop_create_rule(obj['id'],html,VM.$t('lang._COMMOM_POPWIN_VERIFY_'),2);
   popWin(obj['id']);
@@ -1562,6 +1817,11 @@ export const check_popready=function(VM,obj){
       $(this).unbind("click");
     }
     func()
+  });
+  $("#"+obj['id']+" .close").unbind("click").bind("click",function() {  //给close绑定事件 add zxd
+    $("#"+obj['id']+",.maskLayer[pid="+obj['id']+"]").remove();
+    $(this).unbind("click");
+    closeFunc();
   });
 };
 export const download_file = function(path){
@@ -1586,6 +1846,63 @@ export const download_file2 = function(path){
   downloadLink.click();
   // window.open(path);
 };
+
+
+/**
+ * @description: 下载blob对象，二进制流文件
+ * @param res:数据流;
+ * @param fileName:文件名;
+ * @param returnSrc:是否返回路径
+ * @return: 当 returnSrc=true 时，返回src
+ */
+export const download_file_blob = function (res, fileName, returnSrc = false) {
+
+  if (returnSrc) {//需要在页面展示。返回src
+    const blob = new Blob([res])
+    const src = window.URL.createObjectURL(blob);
+    return src
+  } else {//下载
+    if ('msSaveOrOpenBlob' in navigator) {//兼容IE
+      window.navigator.msSaveOrOpenBlob(res, fileName);
+    } else {
+      const alink = document.createElement('a')
+      alink.download = fileName
+      alink.style.display = 'none'
+      alink.href = URL.createObjectURL(res)   // 这里是将文件流转化为一个文件地址
+      document.body.appendChild(alink)
+      var evt = document.createEvent("MouseEvents");
+      evt.initEvent("click", false, false);
+      alink.dispatchEvent(evt);
+      URL.revokeObjectURL(alink.href);
+      document.body.removeChild(alink)
+    }
+  }
+}
+
+/**
+ * @description: 判断查询时间是否超出范围
+ * @param {String} startTime
+ * @param {String} endTime
+ * @param {Number} timeRange 时间范围(天)
+ * @param {Number} 时间范围
+ * @return: 返回true or false
+ */
+export const JudgeOutofTimeRange=(startTime,endTime,timeRange)=>{
+  let time=data_form_create(startTime,endTime);
+  startTime=time.start;//补全时间
+  endTime=time.end;//补全时间
+  let start=startTime.replace('-','/').replace('-','/');//转为浏览器兼容格式 2020/01/02 00:00:00
+  let end=endTime.replace('-','/').replace('-','/');
+  start=new Date(start).getTime();//转换为时间戳
+  end=new Date(end).getTime();
+  timeRange=timeRange*86400000;
+  if((end-start)>timeRange){
+    return true
+  }else{
+    return false
+  }
+}
+
 export const $Cookie = {
   //添加cookie
   addCookie:function (name, value, time) {//名字，值，超时时间--天(1d或者1D)、时(1h或者1H)、分(1m或者1M)、秒(1s或者1S);不区分大小写传入
@@ -1604,8 +1921,8 @@ export const $Cookie = {
     var array = strCookies.split(';');
     //循环每个cookie
     for (var i = 0; i < array.length; i++) {
-      //将cookie截取成两部分
-      var item = array[i].split("=");
+      //将cookie截取成两部分,注意要处理空格
+      var item = array[i].trim().split("=");
       //判断cookie的name 是否相等
       if(!name){
         var obj = {};
@@ -1681,13 +1998,307 @@ export const deal_time = function (time, index) {
 };
 export const deal_time_html = function (time) {
   var html = '';
-  if (time) {
+  let width = document.body.clientWidth
+  // console.log(time)
+  if (time&&width<1440) {
     time.toString();
     time = time.split(' ');
     html = '<span>'+ time[0] +'<br>'+ time[1] +'</span>';
+    return html
   }
-  return html
+  return time
 };
+//处理横坐标时间
+export const deal_time_formatter = function(params,TimeRange){//0：月 1：日 2：:时 3：分 4：实时
+  if (!ifNullData(params)) {
+    if(TimeRange===1){
+      params = params.split(" ")[0];
+      return params
+    }else if(TimeRange===2){
+      params = params.split(" ")[1].substring(0,5) + '\n' + params.split(" ")[0];
+      return params
+    }else if(TimeRange===3){
+      params = params.split(" ")[1].substring(0,5) + '\n' + params.split(" ")[0];
+      return params
+    }else if(TimeRange===0){
+      params = params.substring(0,7)
+      return params
+    }else{
+      params = params.split(" ")[1] + '\n' + params.split(" ")[0];
+      return params
+    }
+  }
+};
+//文字超出显示...
+export const deal_str_formatter = function(str,limit){
+  if (!str || !limit) {
+    return str
+  }
+  str = str.toString();
+  if (str.length > limit) {
+    return str.substr(0,limit) + '...'
+  }else{
+    return str
+  }
+};
+
+//Base64加密解密
+export const Base64=function(){
+  // private property
+  let _keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+
+  // public method for encoding
+  this.encode = function (input) {
+      var output = "";
+      var chr1, chr2, chr3, enc1, enc2, enc3, enc4;
+      var i = 0;
+      input = _utf8_encode(input);
+      while (i < input.length) {
+          chr1 = input.charCodeAt(i++);
+          chr2 = input.charCodeAt(i++);
+          chr3 = input.charCodeAt(i++);
+          enc1 = chr1 >> 2;
+          enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+          enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+          enc4 = chr3 & 63;
+          if (isNaN(chr2)) {
+              enc3 = enc4 = 64;
+          } else if (isNaN(chr3)) {
+              enc4 = 64;
+          }
+          output = output +
+          _keyStr.charAt(enc1) + _keyStr.charAt(enc2) +
+          _keyStr.charAt(enc3) + _keyStr.charAt(enc4);
+      }
+      return output;
+  }
+
+  // public method for decoding
+  this.decode = function (input) {
+      var output = "";
+      var chr1, chr2, chr3;
+      var enc1, enc2, enc3, enc4;
+      var i = 0;
+      input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+      while (i < input.length) {
+          enc1 = _keyStr.indexOf(input.charAt(i++));
+          enc2 = _keyStr.indexOf(input.charAt(i++));
+          enc3 = _keyStr.indexOf(input.charAt(i++));
+          enc4 = _keyStr.indexOf(input.charAt(i++));
+          chr1 = (enc1 << 2) | (enc2 >> 4);
+          chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+          chr3 = ((enc3 & 3) << 6) | enc4;
+          output = output + String.fromCharCode(chr1);
+          if (enc3 != 64) {
+              output = output + String.fromCharCode(chr2);
+          }
+          if (enc4 != 64) {
+              output = output + String.fromCharCode(chr3);
+          }
+      }
+      output = _utf8_decode(output);
+      return output;
+  }
+
+  // private method for UTF-8 encoding
+  let _utf8_encode = function (string) {
+      string = string.replace(/\r\n/g,"\n");
+      var utftext = "";
+      for (var n = 0; n < string.length; n++) {
+          var c = string.charCodeAt(n);
+          if (c < 128) {
+              utftext += String.fromCharCode(c);
+          } else if((c > 127) && (c < 2048)) {
+              utftext += String.fromCharCode((c >> 6) | 192);
+              utftext += String.fromCharCode((c & 63) | 128);
+          } else {
+              utftext += String.fromCharCode((c >> 12) | 224);
+              utftext += String.fromCharCode(((c >> 6) & 63) | 128);
+              utftext += String.fromCharCode((c & 63) | 128);
+          }
+
+      }
+      return utftext;
+  }
+
+  // private method for UTF-8 decoding
+  let _utf8_decode = function (utftext) {
+      var string = "";
+      var i = 0;
+      var c = 0;
+      var c1= 0;
+      var c2= 0;
+      while ( i < utftext.length ) {
+          c = utftext.charCodeAt(i);
+          if (c < 128) {
+              string += String.fromCharCode(c);
+              i++;
+          } else if((c > 191) && (c < 224)) {
+              c2 = utftext.charCodeAt(i+1);
+              string += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
+              i += 2;
+          } else {
+              c2 = utftext.charCodeAt(i+1);
+              c3 = utftext.charCodeAt(i+2);
+              string += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
+              i += 3;
+          }
+      }
+      return string;
+  }
+};
+//获取两个时间之间的月份差数
+export const getMonthSpace = function(startV,endV){ //时间格式 1970-01-01 00:00:00
+  var catY = Number(endV.split('-')[0]) - Number(startV.split('-')[0]);//相差年数
+  var catM = Number(endV.split('-')[1]) - Number(startV.split('-')[1]);//相差月数
+  return catY * 12 + catM
+};
+/*显示加载页面*/
+export const loadingPage = function(isshow){
+  document.getElementById("loadingPage").style.display = isshow ? 'block':'none';
+};
+/**
+ * @description 返回默认告警颜色
+ * @param {number} value 告警等级
+ * @return {string} 告警等级默认颜色
+ */
+export const defaultAlarmLevelColorList=(value)=>{
+  const colorList={
+    1:{ color: '#6800e9', name: '提示信息' },
+    2:{ color: '#3430eb', name: '一般信息' },
+    3:{ color: '#00c5cc', name: '一般告警' },
+    4:{ color: '#66cc00', name: '次要告警' },
+    5:{ color: '#ffcc00', name: '重要告警' },
+    6:{ color: '#ff7200', name: '严重告警' },
+    7:{ color: '#e60011', name: '紧急告警' },
+    // 1:{ color: '#fff', name: '提示信息' },
+    // 2:{ color: '#000', name: '一般信息' },
+    // 3:{ color: '#00c', name: '一般告警' },
+    // 4:{ color: '#66c', name: '次要告警' },
+    // 5:{ color: '#f2d', name: '重要告警' },
+    // 6:{ color: '#ff7', name: '严重告警' },
+    // 7:{ color: '#e60', name: '紧急告警' },
+  }
+  return colorList[Number(value)].color
+};
+/**
+ * 判断两个对象是否相等
+ * @param objA
+ * @param objB
+ * @returns {boolean}
+ */
+export const isEqual = (objA,objB) =>{
+  //相等
+  if(objA === objB) return objA !== 0 || 1/objA === 1/objB;
+  //空判断
+  if(objA == null || objB == null) return objA === objB;
+  //类型判断
+  if(Object.prototype.toString.call(objA) !== Object.prototype.toString.call(objB)) return false;
+
+  //使用正则匹配类型的后面部分
+  function getType (o){
+    var s = Object.prototype.toString.call(o);
+    return s.match(/\[object (.*)]/)[1].toLowerCase();
+  }
+
+  switch(getType){
+    case 'regExp':
+    case 'string':
+      //字符串转换比较
+      return '' + objA ==='' + objB;
+    case 'number':
+      //数字转换比较,判断是否为NaN
+      if(+objA !== +objA){
+        return +objB !== +objB;
+      }
+
+      return +objA === 0?1/ +objA === 1/objB : +objA === +objB;
+    case 'date':
+    case 'boolean':
+      return +objA === +objB;
+    case 'array':
+      //判断数组
+      for(let i = 0; i < objA.length; i++){
+        if (!isEqual(objA[i],objB[i])) return false;
+      }
+      return true;
+    case 'object':
+      //判断对象
+      let keys = Object.keys(objA);
+      for(let i = 0; i < keys.length; i++){
+        if (!isEqual(objA[keys[i]],objB[keys[i]])) return false;
+      }
+
+      keys = Object.keys(objB);
+      for(let i = 0; i < keys.length; i++){
+        if (!isEqual(objA[keys[i]],objB[keys[i]])) return false;
+      }
+
+      return true;
+    default :
+      return false;
+  }
+};
+/*针对于一些内容有输入验证的弹窗关闭主动调用方法*/
+export const close1 = function (id) {
+  $('#'+ id).hide();
+  $(".maskLayer[pId="+id+"]").remove();
+  $('.detail').css('position','fixed');
+};
+export const record_wait_close = function (id) {
+  var Idn = id || 'successMsg';
+  $("#" + Idn + ",.maskLayer[pid=" + Idn + "]").remove();
+};
+export const check_record_time = function (VM,startEnd) {
+  if (startEnd.start > startEnd.end){
+    save_popready(0,VM.$t('lang._RS_HISTORY_TIME_BEGIN_') + '应早于' + VM.$t('lang._EGUARD_END_TIME_'),function () {
+    });
+    return false
+  }else{
+    return true
+  }
+};
+//把对象或者数组的值都换成数字
+export const NumberAttr = function (params) {
+  $.each(params, (key, value) => {
+    if (value) {
+      if (typeof value === "object") {// 如果是对象或者数组
+        NumberAttr(value)
+      } else {
+        params[key] = Number(value)
+      }
+    }
+  })
+};
+/**
+ * @description 液晶屏配置页面不同分辨率适配
+ * @params width  分辨率宽度
+ * @return style 缩放样式
+ */
+export const resoluton = (width)=>{
+  let style=''
+  switch(width){
+    case 1280:
+          style =  `scaleX(1) translateX(0)`;
+          break;
+    case 1440:
+          style =  `scaleX(1.15) translateX(4rem)`;
+          break;
+    case 1600:
+          style =  `scaleX(1.3) translateX(8rem)`;
+          break;
+    case 1680:
+          style =  `scaleX(1.35) translateX(10rem)`;
+          break;
+    case 1920:
+          style =  `scaleX(1.55) translateX(15.5rem)`;
+          break;
+    default:
+          style =  `scaleX(1) translateX(0)`;
+          break;
+  }
+  return style
+}
 // export default {
 //   getExplorerInfo:getExplorerInfo,//检测浏览器版本
 //   brower_type:brower_type,       //判断浏览器类型
@@ -1745,4 +2356,7 @@ export const deal_time_html = function (time) {
 //   download_file: download_file,//下载文件
 //   $Cookie: $Cookie,//设置cookie
 //   user_has_permission: user_has_permission,//用户操作权限判断
+//   deal_time_formatter:deal_time_formatter//处理横坐标时间
+//   Base64:Base64//Base64加密解密
+//   record_export_rule_design:record_export_rule_design//自定义导出
 // }
