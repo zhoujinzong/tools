@@ -3,19 +3,15 @@
   <section>
     <div  id="main_model" class="absoult_all" v-show="isWebGl">
       <div id="Stats_output"></div>
-      <!--<div id="circeLeft" v-bind:class="isWebGl && animationFlag === 1? 'circeLeft':'circeLeft_dis'"></div>-->
-      <!--<div id="circeRight" v-bind:class="isWebGl && animationFlag === 1 ? 'circeRight':'circeRight_dis'"></div>-->
-      <div id="circeLeft" v-bind:class="isWebGl ? 'circeLeft':'circeLeft_dis'"></div>
-      <div id="circeRight" v-bind:class="isWebGl? 'circeRight':'circeRight_dis'"></div>
-      <!--<div id="circeTop"></div>-->
-      <!--<div id="circeBottom"></div>-->
+      <div id="circeLeft" v-bind:class="isWebGl ? 'circeLeft':'circeLeft_dis'" @mousedown="circle_action(1, tag_left)"></div>
+      <div id="circeRight" v-bind:class="isWebGl? 'circeRight':'circeRight_dis'" @mousedown="circle_action(-1, tag_left)"></div>
       <div class="cabinet3D_switch">
         <div v-for="menu in threeD_switch_menu" :id="menu.id"
-             v-if="LCD === 0 && menu.isShow" v-on:click="changeView(menu.viewFlag,menu.type)"
+             v-if="isShowSwitchMenu && menu.isShow" v-on:click="changeView(menu.viewFlag,menu.type)"
              :class="(viewFlag === menu.viewFlag && (menu.type ? current_capacity_type === menu.type : true))? menu.selectClass : ''"
              :title="menu.title"></div>
       </div>
-      <div id="circeReset" title="初始视角"></div>
+      <div id="circeReset" title="初始视角" :style="{top: is_qt ? '1rem':'unset'}" @mousedown="circle_action(1, tag_reset)"></div>
       <div id="CanvasHide" style="display: none"></div>
       <div class="loading_center" v-show="isLoading"></div>
       <div class="bangben_warning" v-show="cubeArry.length===0 &&!isLoading">暂无数据，请添加机柜</div>
@@ -26,20 +22,24 @@
         <span id="temp_28">28</span>
         <span id="temp_34">34></span>
       </div>
+        <!--容量温度柱图参考开始-->
       <div id="color_cap" class="color_list" v-show="viewFlag === 2 || viewFlag === 6" >
         <div id="cap_text" class="color_top_text">{{viewFlag === 6 ? '温度（℃）': '容量（%）'}}</div>
         <div id="cap_num"></div>
       </div>
-      <label v-if="viewFlag === 1" style="position:absolute;top: 2rem;" :style="{right: heatmap_type === 1 ? '3.5rem':'1rem'}">
-        <select v-model.number="heatmap_type" @change="change_heatmap_view1">
-          <option v-for="(val,key) in three_map_type" :value="key">{{val}}</option>
-        </select>
-      </label>
-      <label v-if="viewFlag === 1" style="position:absolute;top: 2rem;right: 1rem;">
-        <select v-if="heatmap_type === 1" v-model.number="heatmap_view" @change="change_heatmap_view">
-          <option v-for="(val,key) in three_map_chose" :value="key">{{val}}</option>
-        </select>
-      </label>
+<!--        容量温度柱图参考结束-->
+      <!--旧的云图切换开始-->
+<!--      <label v-if="viewFlag === 1" class="heatmap_type" :style="{right: heatmap_type === 1 ? (LCD === 1 ? '4.5rem':'3.5rem'):'1rem'}">-->
+<!--        <select v-model.number="heatmap_type" @change="change_heatmap_view1">-->
+<!--          <option v-for="(val,key) in three_map_type" :value="key">{{val}}</option>-->
+<!--        </select>-->
+<!--      </label>-->
+<!--      <label v-if="viewFlag === 1" class="heatmap_type_1">-->
+<!--        <select v-if="heatmap_type === 1 || true" v-model.number="heatmap_view" @change="change_heatmap_view">-->
+<!--          <option v-for="(val,key) in three_map_chose" :value="key">{{val}}</option>-->
+<!--        </select>-->
+<!--      </label>-->
+      <!--旧的云图切换结束-->
     </div>
 
     <div class="absoult_all" v-show="!isWebGl">
@@ -50,6 +50,30 @@
 
     <!--机柜浮动信息 -->
     <div class="main_ico_3d" id="main_ico_3d" v-show="devShow" v-html="nowItme.name" v-bind:style="{top:nowItme.y + 'px',left:nowItme.x + 'px',color: '#ffffff'}"></div>
+<!--    <div v-show="viewFlag === 1 || viewFlag === 6" id="threeD_chose_menu_center" class="position_center" @click="show_threeD_chose_menu"></div>-->
+    <div class="main_ico_3d threeD_chose_menu_3d" id="main_3d_menu" v-show="threeD_chose_menu_show" v-clickOutSide="show_false"
+         v-bind:style="{top:threeD_chose_menu_position.y + 'px',left:threeD_chose_menu_position.x + 'px',color: '#ffffff'}">
+      <div id="left_sanjiao"></div>
+      <ul class="threeD_chose_menu">
+        <li v-for="(menu,index) in threeD_chose_menu"
+            style="padding: 5px;"
+            :class="[index !== threeD_chose_menu.length - 1 && 'threeD_chose_menu_li_class',(threeD_chose_menu_chose_judge(menu.key,menu.value) && !menu.showChildren) && 'threeD_chose_menu_chose']"
+            @click="change_heatmap_view1(menu.value,menu.key)">
+          <div class="threeD_chose_menu_div">
+            <span class="menu_img"></span>
+            <span v-text="menu.name"></span>
+            <span v-show="menu.children" :class="['threeD_chose_menu_arrow',menu.showChildren ? 'threeD_chose_menu_arrow_down':'threeD_chose_menu_arrow_up']"></span>
+          </div>
+          <ul v-show="menu.showChildren">
+            <li v-for="children in menu.children" @click="change_heatmap_view($event,children.value,children.key)">
+              <div>
+                <span v-text="children.name" :class="threeD_chose_menu_chose_judge(children.key,children.value) && 'threeD_chose_menu_chose'" ></span>
+              </div>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
     <mainPopWin idn="main_three_pop" v-on:showChange="showChange" v-bind="{showFlag:showFlag,box_index:box_index,cab_type:0,dev_index:0}"></mainPopWin>
     <!--<mobileSoftKey v-if="LCD"></mobileSoftKey>-->
 
