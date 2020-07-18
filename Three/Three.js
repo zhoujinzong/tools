@@ -1,22 +1,34 @@
 // JavaScript Document
-import {popWin} from '../../plugin/tc.all.js';
+import {popWin} from "../../plugin/tc.all.js"
 
-import * as THREE from 'three';
-import {MTLLoader, OBJLoader} from 'three-obj-mtl-loader'; //这个引用不能删除,不然会报错
+import * as THREE from "three"
+import {MTLLoader, OBJLoader} from "three-obj-mtl-loader" //这个引用不能删除,不然会报错
 // import {MTLLoader, OBJLoader} from 'three-obj-mtl-loader'; //这个引用不能删除,不然会报错
-import {WEBGL} from '../../plugin/WebGL';
-import popWindow from '../../components/popWindow';
-import myVideoPlay from '../../components/myVideoPlay';
-import mainPopWin from '../../pages/main/mainPopWin'; //机柜告警弹窗
-import {$Cookie, dataValidation, getTextColor, ie_CollectGarbage, ifNullData, save_popready, isEqual, alarmLevel_get_ajax, defaultAlarmLevelColorList,loadingPage} from "../../libs/public"
-import QWebChannel from "../qwebchannel";
-import OrbitControls from 'three/examples/js/controls/OrbitControls';
-import Stats from "stats.js/src/Stats";
-import Heatmap from 'heatmap.js';
+import {WEBGL} from "../../plugin/WebGL"
+import popWindow from "../../components/popWindow"
+import myVideoPlay from "../../components/myVideoPlay"
+import mainPopWin from "../../pages/main/mainPopWin" //机柜告警弹窗
+import {
+  $Cookie,
+  dataValidation,
+  getTextColor,
+  ie_CollectGarbage,
+  ifNullData,
+  save_popready,
+  isEqual,
+  alarmLevel_get_ajax,
+  defaultAlarmLevelColorList,
+  loadingPage,
+} from "../../libs/public"
+import QWebChannel from "../qwebchannel"
+import OrbitControls from "three/examples/js/controls/OrbitControls"
+import Stats from "stats.js/src/Stats"
+import Heatmap from "heatmap.js"
+import clickOutSide from "../../libs/clickOutSide"//外部点击方法
 // import Heatmap from  '../../plugin/heatmap.js';
 
 export default {
-  name: 'mainThreeD',
+  name: "mainThreeD",
   data() {
     return {
       mainThreeI: null,
@@ -24,6 +36,9 @@ export default {
 
       Loadover: 3,//loadMTL + loadJPG + 3
       isLoading: true,
+      hasEnterMounted: false,//是否已经进过mounted
+      isControlsChange: false,//是否正在旋转
+      isRoateing: false,//表示正在旋转，左右点击的旋转
       cube: [],
       cubeArry: [],//机柜信息
       meshData: [],
@@ -31,6 +46,11 @@ export default {
       mesh1: [],//机柜贴图上的名字
       mesh2: [],//机柜的容量数值
       mesh3: {},//机柜的温度柱图上的数, 注意这里用了对象存
+      mesh4: {},//机柜的温度柱图的mesh, 注意这里用了对象存
+      // mesh5: {},//机柜的容量云图的mesh, 注意这里用了对象存
+      sphereMesh: null,//切换菜单的模型对象
+      coneMesh: null,//切换菜单的模型对象
+      latheMesh: null,//切换菜单的模型对象
       capacityMesh: [],//机柜的容量
       cubeArry_old: [],//机柜上一次信息，对比使用
       vH: [],
@@ -44,6 +64,7 @@ export default {
       texture1: null,//贴图
       texture_disabled_big: null,//贴图
       texture_disabled_small: null,//贴图
+      threeD_chose_menu_texture: null,//切换菜单的贴图
       animationFlag: 0,
       refreshF: 0,
       anaglePI: 0,
@@ -62,17 +83,17 @@ export default {
       shapeMess: null,
       Timeinterval_3d: null,
       mainD_cabinet_timer: null,//正常机柜弹窗循环
-      cabinet_pop_title: '',//机柜详细信息名字
-      box_index: '',
-      cab_type: '',
-      dev_index: '',
+      cabinet_pop_title: "",//机柜详细信息名字
+      box_index: "",
+      cab_type: "",
+      dev_index: "",
       showFlag: false,
       devShow: false,
       nowItme: {//鼠标浮动机柜
         name: "",
         x: 0,
         y: 0,
-        is3d: false,
+        is3d: false
       },
       cold_hot: {}, //机柜温湿度数据
       pc_data: [], //机柜配电柜数据
@@ -101,7 +122,7 @@ export default {
         // 113: 0x8aff00,
         116: 0x00ff43,
         // 116: 0x8aff00,
-        117: 0xffffff,//综合柜不显示贴图
+        117: 0xffffff//综合柜不显示贴图
         // 117: 0x555555,
         // 117: 0x8aff00,
       },/*机柜颜色颜色列表，与pub_set.css中的机柜颜色设置一致*/
@@ -116,29 +137,29 @@ export default {
         106: 0xffffff,
         113: 0x01e8ff,
         116: 0xc0ff00,
-        117: 0xc0ff00,
+        117: 0xc0ff00
       },/*机柜颜色颜色列表，与pub_set.css中的机柜颜色设置一致*/
       equip_content: [
         //无效柜
         {
           keys: [100],
-          color: 0xffffff,
+          color: 0xffffff
         },
         //用户柜
         {
           keys: [106],
-          color: 0x17ffdc,
+          color: 0x17ffdc
         },
         //空调
         {
           keys: [105, 113],
-          color: 0x07beff,
+          color: 0x07beff
         },
         //动力
         {
           keys: [102, 103, 104],
-          color: 0xffc800,
-        },
+          color: 0xffc800
+        }
         //其他，直接写颜色
       ],
       alarmL_color: {
@@ -152,10 +173,13 @@ export default {
         // 6: '#ff7200',
         // 7: '#e60011',
       },/*告警颜色列表*/
-      tag_left: 'left',
-      tag_top: 'top',
-      tag_reset: 'reset',
-      FocalLength: 70,//初始值
+      tag_left: "left",
+      tag_top: "top",
+      tag_reset: "reset",
+      oldFocalLength: 70,//初始值，设置模型大小
+      FocalLength: 70,//初始值，设置模型大小
+      cabinetMax: 16,//初始值，设置模型大小单排最大长度
+      FocalPer: 2,//模型缩小系数
       reset_position: {x: -800, y: 800, z: 2700},//初始位置
       reset_camera: {x: 0, y: 130, z: 0},//初始位置
       mouseClickStartTime: 0,//鼠标点击开始时间
@@ -164,10 +188,10 @@ export default {
       mouseClickTimeInterval: null,//鼠标长按定时器
       devScale: 2,//设备模型放大倍数，只针对于顶部邠设备
       temp_camera_obj: {//顶部设备类型对应的设备模型
-        0: 'af_sp_qiu',//球形摄像头
-        2: 'af_sp_qiang',//枪型摄像头，原来是1，因为会和开关量的烟雾重复，所以设置了2
-        1: 'af_smoke',//烟雾
-        7: 'af_smoke',//温感
+        0: "af_sp_qiu",//球形摄像头
+        2: "af_sp_qiang",//枪型摄像头，原来是1，因为会和开关量的烟雾重复，所以设置了2
+        1: "af_smoke",//烟雾
+        7: "af_smoke"//温感
       },
       temp_camera_list: [
         // {
@@ -180,12 +204,13 @@ export default {
         //   "name_f": "枪形摄像头"
         // },
       ],//摄像头与温感烟感列表
-      old_temp_camera_list:[],
-      old_temp_camera_Obj:{},//旧数据
-      viewFlag: 4,//当前显示的是哪个视图 (1,温度云图；2：容量云图；3：安防视图；4:普通3D视图)
+      old_temp_camera_list: [],
+      old_temp_camera_Obj: {},//旧数据
+      viewFlag: 4,//当前显示的是哪个视图 (1,温度云图；2：容量云图；3：安防视图；4:普通3D视图；6:温度柱图)
       isTransparent: false,//机柜是否透明
       HeatMapInstance_Arr: [],//热点图
       objLength: 0,//机柜的总长度
+      objLengh_air: 0,//空调机柜的总长度
       objHeight: 290,//机柜的高度
       objSingleLength: 120,//单边机柜的长度
       objAllCabinetWidth: 360,//机柜的宽度，后面一排+中间通道+正面一排
@@ -195,9 +220,10 @@ export default {
       objCabinetHeight: 250,//单个机柜内部的高度
       objCabinetBottomHeight: 23.29,//单个机柜底座的高度
       objCabinetTopHeight: 22,//单个机柜底座的高度
-      objBottomWidth: 60,//底部线框模型宽度
-      objBottomLength: 60,//底部线框模型长度
-      objBottomHeight: 32.5,//底部线框模型高度
+      objBottomWidth: 45,//底部线框模型宽度
+      objBottomLength: 45,//底部线框模型长度
+      // objBottomHeight: 32.5,//底部线框模型高度
+      objBottomHeight: 45,//底部线框模型高度
       half_ll: 0,//前门
       half_rr: 0,//后门
       current_flag: 0,
@@ -207,7 +233,6 @@ export default {
       heatmap_map_three: [],//温度云图mesh对象
       camera_dev_group: {},//安防设备group对象
       heatmap_four_mesh_Timer: null,
-      smokeParticles: [],
       clock: null,
       delta: 0,
       heatmap_data_list: [
@@ -221,85 +246,91 @@ export default {
         1
       ],
       color_list: [
-        '#14dcff',
+        "#14dcff",
         // 'rgba(0,255,50,1)',
-        '#00ff32',
+        "#00ff32",
         // 'rgba(155,250,20,1)',
-        '#96ff14',
+        "#96ff14",
         // 'rgba(255,255,10,1)',
-        '#ffff0a',
+        "#ffff0a",
         // 'rgba(255,200,0,1)',
-        '#ffc800',
+        "#ffc800",
         // 'rgba(240,0,0,1)',
-        '#f00000'
+        "#f00000"
       ],
       spotLight_list: [
         {
           x: 0,
           y: 1000,
-          z: -1000,
+          z: -1000
         },
         {
           x: 0,
           y: 1000,
-          z: 1000,
+          z: 1000
         },
         {
           x: 1000,
           y: -1000,
-          z: 1000,
-        },
+          z: 1000
+        }
       ],
       demo_point: {},
       current_capacity_type: 0,//当前容量类型
-      capacity_type_list:[
-        { index: 1,
-          key: 'u_rate',//字段后台还未定义
-          name: 'U位云图',
+      capacity_type_list: [
+        {
+          index: 1,
+          key: "u_rate",//字段后台还未定义
+          name: "U位云图",
+          colors: ["#83ff62", "#9fffcf"]
         },
-        { index: 2,
-          key: 'pdc_rate',
-          name: '配电云图',
+        {
+          index: 2,
+          key: "pdc_rate",
+          name: "配电云图",
+          colors: ["#ff8e52", "#fff640"]
         },
-        { index: 3,
-          key: 'cooling_rate',
-          name: '制冷云图',
-        },
+        {
+          index: 3,
+          key: "cooling_rate",
+          name: "制冷云图",
+          colors: ["#03adff", "#3cebff"]
+        }
       ],//容量类型对应属性名字
       capacity_color_list: [
         {
           key: 0,
-          color: '#2e8de5',
+          color: "#2e8de5"
           // color: 'rgba(28,188,255,0.8)',
         },
         {
           key: 20,
-          color: '#2ee2e5',
+          color: "#2ee2e5"
           // color: '#00c9cc',
           // color: 'rgba(26,255,91,0.8)',
         },
         {
           key: 40,
-          color: '#2ee56a',
+          color: "#2ee56a"
           // color: '#00cc99',
           // color: 'rgba(177,255,26,0.8)',
         },
         {
           key: 60,
-          color: '#f2c230',
+          color: "#f2c230"
           // color: '#a67c00',
           // color: 'rgba(255,242,26,0.8)',
         },
         {
           key: 80,
-          color: '#f27c3d',
+          color: "#f27c3d"
           // color: 'rgba(255,182,26,0.8)',
         },
         {
           key: 100,
-          color: '#e54545',
+          color: "#e54545"
           // color: 'rgba(255,74,26,0.8)',
-        },
+        }
       ],//容量云图对应颜色
       projectiveObj: null,//当前点击的对象
       RAYCASTER: null,//光线投射器
@@ -307,27 +338,33 @@ export default {
       has_old_pdc_rate_set: false,//是否已经设置了旧值
       has_old_cooling_rate_set: false,//是否已经设置了旧值
       has_old_u_rate: false,//是否已经设置了旧值
-      three_map_type:{0:'机柜云图', 1: '3个平面云图'},
-      three_map_chose:{'-1':'全部',0: '上', 1: '中', 2: '下'},
-      heatmap_type: 0,//热力图类型，0：3D，1：三个平面
-      heatmap_view: -1,
+      three_map_type: {0: "机柜云图", 1: "3个平面云图"},
+      three_map_chose: {"-1": "全部", 0: "上", 1: "中", 2: "下"},
+      heatmap_type: 0,//温度云图类型，0：全景，1：立面 , -1：三个平面
+      cap_temp_type: -1,//温度柱图类型，-1：全部机柜：0：热通道1，1：冷通道1：，2：热通道2，3；冷通道2
+      heatmap_view: -1,//温度云图三个平面上中下类型 -1：全部 ，0:上，1：中；2:下
+      heatmap_view1: -1,//温度云图全景中的前排后排类型 -1：全部 ，0:前排，1：后排
+      heatmap_view2: -1,//温度云图立面视图中的四个面类型 -1：全部 ，0:第一面，1:第二面，2:第三面，3:第四面，
+      cap_temp_view: -1,//温度云图三个平面冷热通道类型 0:冷，1：热，暂时不用
       requestAnimationFrameID: null,//自动动画的ID
 
       //用作判断是否是点击对象的名字
-      cabinet_: 'cabinet_',
-      cabinetName_: 'cabinetName_',
-      cameraDev_: 'cameraDev_',
-      cabinetTemp_: 'cabinetTemp_',
-      cabinetCapacity: 'cabinetCapacity_',
+      cabinet_: "cabinet_",
+      cabinetName_: "cabinetName_",
+      cameraDev_: "cameraDev_",
+      cabinetTemp_: "cabinetTemp_",
+      cabinetCapacity: "cabinetCapacity_",
+      cabinetChoseMenu: "cabinetChoseMenu_",//3D菜单
+      capacityTemp: "capacityTemp_",//温度柱图
 
-      key_hot:'hot',//热的key
-      key_cold:'cold',//冷的key
-      key_way_hot:'hot_passageway',//冷通道的key
-      key_way_cold:'cold_passageway',//冷通道的key
+      key_hot: "hot",//热的key
+      key_cold: "cold",//冷的key
+      key_way_hot: "hot_passageway",//冷通道的key
+      key_way_cold: "cold_passageway",//冷通道的key
 
-      temp_default:{
+      temp_default: {
         hot: 20,//热通道给的默认温度值
-        cold: 18,//冷通道给的默认温度值
+        cold: 18//冷通道给的默认温度值
       },
       all_max_hot: 20,//当前所有的最大值
       all_max_cold: 18,//当前所有的最大值
@@ -335,114 +372,240 @@ export default {
       randomCoe: 1,//随机数系数
       all_passageway_data: {},//所有的原来通道的数据
       limit_per: 3,//临近距离多少需要删除这个点
-      defaultRadius: 75,//默认大小
+      defaultRadius: 80,//默认大小
+      defaultDataMax: 37,//默认最大值
+      defaultDataMin: 18,//默认最小值
       max_coe: 0.3,//点击值的最高系数
       min_coe: 0.2,//点击值的最低系数
 
-      basicURL:'/static/models/',//模型、贴图根路径
-      pop_camera_dev:{},//弹窗摄像头设备
+      basicURL: "/static/models/",//模型、贴图根路径
+      pop_camera_dev: {},//弹窗摄像头设备
 
       video_dev_type: 0,//弹出框摄像头设备类型
       video_dev_index: 0,//弹出框摄像头设备编号
       main_ico_3d: null,
 
       MyisRender: false,//当前切换view的控制
+
+      hide_opacity: 0.4,//淡化的透明度
+      show_opacity: 0.9,//显示的透明度
+
+      threeD_chose_menu_show: false,//图上切换的菜单显示
+      threeD_chose_menu_position: {
+        x: 500,
+        y: 500
+      },//温度云图切换菜单
+      heatmap_dev_menu: [
+        {
+          name: "全景视图",
+          value: 0,
+          showChildren: false,
+          key: "heatmap_type",
+          children: [
+            {
+              name: "全部",
+              value: -1,
+              key: "heatmap_view1"
+            },
+            {
+              name: "前排",
+              value: 0,
+              key: "heatmap_view1"
+            }, {
+              name: "后排",
+              value: 1,
+              key: "heatmap_view1"
+            }
+          ]
+        },
+        {
+          name: "立面视图",
+          value: 1,
+          showChildren: false,
+          key: "heatmap_type",
+          children: [
+            {
+              name: "全部机柜",
+              value: -1,
+              key: "heatmap_view2"
+            }, {
+              name: "热通道1",
+              value: 0,
+              key: "heatmap_view2"
+            }, {
+              name: "冷通道1",
+              value: 1,
+              key: "heatmap_view2"
+            }, {
+              name: "热通道2",
+              value: 3,
+              key: "heatmap_view2"
+            }, {
+              name: "冷通道2",
+              value: 2,
+              key: "heatmap_view2"
+            }
+          ]
+        }, {
+          name: "平面视图",
+          value: -1,
+          showChildren: false,
+          key: "heatmap_type",
+          children: [
+            {
+              name: "全部",
+              value: -1,
+              key: "heatmap_view"
+            },
+            {
+              name: "上层",
+              value: 0,
+              key: "heatmap_view"
+            }, {
+              name: "中层",
+              value: 1,
+              key: "heatmap_view"
+            }, {
+              name: "下层",
+              value: 2,
+              key: "heatmap_view"
+            }
+          ]
+        }
+      ],
+      temp_menu: [
+        {
+          name: "全部机柜",
+          value: -1,
+          showChildren: false,
+          key: "cap_temp_type"
+        },
+        {
+          name: "热通道1",
+          value: 0,
+          showChildren: false,
+          key: "cap_temp_type"
+        },
+        {
+          name: "冷通道1",
+          value: 1,
+          showChildren: false,
+          key: "cap_temp_type"
+        }, {
+          name: "热通道2",
+          value: 2,
+          showChildren: false,
+          key: "cap_temp_type"
+        }, {
+          name: "冷通道2",
+          value: 3,
+          showChildren: false,
+          key: "cap_temp_type"
+        }
+      ]
     }
+  },
+  directives: {//自定义指令 ，v-
+    clickOutSide
   },
   components: {
     popWindow: popWindow,
     mainPopWin: mainPopWin,
-    myVideoPlay: myVideoPlay,
+    myVideoPlay: myVideoPlay
   },
   watch: {
-    isLoading(val,oldVal){
-      if (!val){
-        this.MyisRender = false
+    isLoading(val, oldVal) {
+      this.$store.commit("setIsLoading3D", val)//及时更新3D更新状态
+      if (!val) {
+        this.MyisRender = false;
+        this.hasEnterMounted = false//重置一下
       }
     }
   },
-  computed:{
-    objCabinetHeightCoe (){//单个机柜内部的高度拉伸的系数，只针对于容量云图
+  computed: {
+    objCabinetHeightCoe() {//单个机柜内部的高度拉伸的系数，只针对于容量云图
       return (this.objCabinetHeight + this.objCabinetBottomHeight) / this.objCabinetHeight
     },
-    loadMTL() {//需要提前加载的材质 , name: 材质名字，data_name: vue对象中对应要创建的属性名字，loader：使用什么加载器，children：在这加载结束之后二次加载的内容，mtl：需要设置的材质对象
-      return [
-        {
-          name: 'jg_02.mtl',
-          data_name: 'mtl_jg_02',
-          loader: 'MTLLoader',
-          children: [
-            {
-              name: 'jg_02.obj',
-              data_name: 'obj_jg_02',
-              loader: 'OBJLoader',
-              mtl: 'mtl_jg_02',
-            },
-          ]
-        },
-        {
-          name: 'men_01.mtl',
-          data_name: 'mtl_men_01',
-          loader: 'MTLLoader',
-          children:[
-            {
-              name: 'men_01.obj',
-              data_name: 'obj_men_01',
-              loader:'OBJLoader',
-              mtl: 'mtl_men_01',
-            },
-          ],
-        },
-        {
-          name: 'men_02.mtl',
-          data_name: 'mtl_men_02',
-          loader: 'MTLLoader',
-          children:[
-            {
-              name: 'men_02.obj',
-              data_name: 'obj_men_02',
-              loader:'OBJLoader',
-              mtl: 'mtl_men_02',
-            },
-          ],
-        },
-        {
-          name: 'jg_03.mtl',
-          data_name: 'mtl_jg_03',
-          loader: 'MTLLoader',
-          children:[
-            {
-              name: 'jg_03.obj',
-              data_name: 'obj_jg_03',
-              loader:'OBJLoader',
-              mtl: 'mtl_jg_03',
-            },
-          ],
-        },
-      ]
+    jg_02() {
+      return {
+        name: "jg_02.mtl",
+        data_name: "mtl_jg_02",
+        loader: "MTLLoader",
+        children: {
+          name: "jg_02.obj",
+          data_name: "obj_jg_02",
+          loader: "OBJLoader",
+          mtl: "mtl_jg_02"
+        }
+      }
+    },
+    men_01() {
+      return {
+        name: "men_01.mtl",
+        data_name: "mtl_men_01",
+        loader: "MTLLoader",
+        children: {
+          name: "men_01.obj",
+          data_name: "obj_men_01",
+          loader: "OBJLoader",
+          mtl: "mtl_men_01"
+        }
+      }
+    },
+    men_02() {
+      return {
+        name: "men_02.mtl",
+        data_name: "mtl_men_02",
+        loader: "MTLLoader",
+        children: {
+          name: "men_02.obj",
+          data_name: "obj_men_02",
+          loader: "OBJLoader",
+          mtl: "mtl_men_02"
+        }
+      }
+    },
+    jg_03() {
+      return {
+        name: "jg_03.mtl",
+        data_name: "mtl_jg_03",
+        loader: "MTLLoader",
+        children: {
+          name: "jg_03.obj",
+          data_name: "obj_jg_03",
+          loader: "OBJLoader",
+          mtl: "mtl_jg_03"
+        }
+
+      }
     },
     loadJPG() {//需要提前加载的材质 , name: 材质名字，data_name: vue对象中对应要创建的属性名字，loader：使用什么加载器，
       return [
         {
-          name: 'cabinet_60.jpg',//普通机柜贴图
-          data_name: 'texture0',
-          loader: 'TextureLoader',
+          name: "cabinet_60.jpg",//普通机柜贴图
+          data_name: "texture0",
+          loader: "TextureLoader"
         },
         {
-          name: 'fair.jpg',//空调贴图
-          data_name: 'texture1',
-          loader: 'TextureLoader',
+          name: "fair.jpg",//空调贴图
+          data_name: "texture1",
+          loader: "TextureLoader"
         },
         {
-          name: 'fgrey_big.jpg',//灰色贴图 大
-          data_name: 'texture_disabled_big',
-          loader: 'TextureLoader',
+          name: "fgrey_big.jpg",//灰色贴图 大
+          data_name: "texture_disabled_big",
+          loader: "TextureLoader"
         },
         {
-          name: 'fgrey_small.jpg',//灰色贴图 小
-          data_name: 'texture_disabled_small',
-          loader: 'TextureLoader',
+          name: "fgrey_small.jpg",//灰色贴图 小
+          data_name: "texture_disabled_small",
+          loader: "TextureLoader"
         },
+        {
+          name: "heatmap_view_type.png",//灰色贴图 小
+          data_name: "threeD_chose_menu_texture",
+          loader: "TextureLoader"
+        }
       ]
     },
     // Loadover:{
@@ -453,238 +616,307 @@ export default {
     //
     //   }
     // },
-    is_show_u (){//是否显示U位 与资产使能一致
-      return this.$store.state.Opt_Mtc_Manage && this.$store.state.router_data.Opt_Mtc_Manage.AssetManage
+    is_show_safe() {//是否显示安防视图
+      return this.$store.state.DouleRowCabinet && this.$store.state.DouleRowCabinet.SecurityView
     },
-    is_show_pd (){//是否显示配电 与容量使能一致
-      return this.$store.state.Opt_Mtc_Manage && this.$store.state.router_data.Opt_Mtc_Manage.CapacityManage
+    is_show_temp() {//是否显示温度云图
+      return this.$store.state.DouleRowCabinet && this.$store.state.DouleRowCabinet.TempCloudChart
     },
-    is_show_cold (){//是否显示制冷 与容量使能一致
-      return this.$store.state.Opt_Mtc_Manage && this.$store.state.router_data.Opt_Mtc_Manage.CapacityManage
+    is_show_u() {//是否显示U位
+      return this.$store.state.DouleRowCabinet && this.$store.state.DouleRowCabinet.CapacityManage
     },
-    threeD_switch_menu(){
+    is_show_pd() {//是否显示配电
+      return this.$store.state.DouleRowCabinet && this.$store.state.DouleRowCabinet.CapacityManage
+    },
+    is_show_cold() {//是否显示制冷
+      return this.$store.state.DouleRowCabinet && this.$store.state.DouleRowCabinet.CapacityManage
+    },
+    threeD_switch_menu() {
       return [
-        {id: 'cabinet_3d',isShow: true,viewFlag: 4, selectClass: 'cabinet_3d_select', title:'3D视图'},
-        {id: 'cabinet_safe',isShow: true,viewFlag: 3, selectClass: 'cabinet_safe_select', title:'安防视图'},
-        {id: 'cabinet_temp',isShow: true,viewFlag: 1, selectClass: 'cabinet_temp_select', title:'温度云图'},
-        {id: 'cabinet_temp_column',isShow: true,viewFlag: 6, selectClass: 'cabinet_temp_column_select', title:'温度柱图'},
-        {id: 'cabinet_u',isShow: this.is_show_u,viewFlag: 2, type: 1, selectClass: 'cabinet_u_select', title:'U位云图'},
-        {id: 'cabinet_pd',isShow: this.is_show_pd,viewFlag: 2, type: 2, selectClass: 'cabinet_pd_select', title:'配电视图'},
-        {id: 'cabinet_cold',isShow: this.is_show_cold,viewFlag: 2, type: 3, selectClass: 'cabinet_cold_select', title:'制冷视图'},
-      ];
+        {id: "cabinet_3d", isShow: true, viewFlag: 4, selectClass: "cabinet_3d_select", title: "3D视图"},
+        {id: "cabinet_safe", isShow: this.is_show_safe, viewFlag: 3, selectClass: "cabinet_safe_select", title: "安防视图"},
+        {id: "cabinet_temp", isShow: this.is_show_temp, viewFlag: 1, selectClass: "cabinet_temp_select", title: "温度云图"},
+        {
+          id: "cabinet_temp_column",
+          isShow: true,
+          viewFlag: 6,
+          selectClass: "cabinet_temp_column_select",
+          title: "温度柱图"
+        },
+        {id: "cabinet_u", isShow: this.is_show_u, viewFlag: 2, type: 1, selectClass: "cabinet_u_select", title: "U位云图"},
+        {
+          id: "cabinet_pd",
+          isShow: this.is_show_pd,
+          viewFlag: 2,
+          type: 2,
+          selectClass: "cabinet_pd_select",
+          title: "配电视图"
+        },
+        {
+          id: "cabinet_cold",
+          isShow: this.is_show_cold,
+          viewFlag: 2,
+          type: 3,
+          selectClass: "cabinet_cold_select",
+          title: "制冷视图"
+        }
+      ]
     },
+    is_qt() {
+      return typeof qt != "undefined"
+    },
+    threeD_chose_menu() {
+      if (this.viewFlag === 1) {
+        return this.heatmap_dev_menu
+      } else if (this.viewFlag === 6) {
+        return this.temp_menu
+      } else {
+        return []
+      }
+    },
+    isShowSwitchMenu() {
+      return this.LCD === 0 || !this.is_qt
+      // return true
+    },
+    /**
+     * 有点击的视图
+     * @returns {{"1": string, "3": string, "4": string}}
+     */
+    viewFlagAndModelName() {
+      return {
+        1: this.cabinetTemp_,
+        3: this.cameraDev_,
+        // 4: this.cabinet_
+      }
+    },
+    /**
+     * 当前需要判断所点击的模型名字
+     * @returns {*}
+     */
+    theOneObj() {
+      return this.viewFlagAndModelName[this.viewFlag]
+    }
   },
   methods: {
     showChange: function (data) {//子组件调用 修改父组件showFlag
-      this.showFlag = data;
+      this.showFlag = data
     },
     main_normal_close: function () {//关闭详细信息弹窗
-      clearInterval(this.mainD_cabinet_timer);
-      this.mainD_cabinet_timer = null;
+      clearInterval(this.mainD_cabinet_timer)
+      this.mainD_cabinet_timer = null
     },
-    camera_dev_message_message(){//摄像头设备详细信息
-      var param = this.pop_camera_dev;
-      this.video_dev_type = param.dev_type;
-      this.video_dev_index = param.dev_index;
+    camera_dev_message_message() {//摄像头设备详细信息
+      var param = this.pop_camera_dev
+      this.video_dev_type = param.dev_type
+      this.video_dev_index = param.dev_index
       if (this.$refs.myVideo) {
-        this.$refs.myVideo.get_specific_map_info(param.dev_type, param.dev_index);
+        this.$refs.myVideo.get_specific_map_info(param.dev_type, param.dev_index)
       }
-      popWin('showVideo')
+      popWin("showVideo")
     },
     MtextureLoad: function (myurl) {
-      var VM = this;
-      return new THREE.TextureLoader().load('/static/models/' + myurl, function () {
-        VM.Loadover--;
-      });
+      var VM = this
+      return new THREE.TextureLoader().load("/static/models/" + myurl, function () {
+        VM.Loadover--
+      })
     },
     render_setSize: function () {//缩放
-      var VM = this;
+      var VM = this
       this.$nextTick(function () {
-        VM.render_setSize1();
+        VM.render_setSize1()
       })
     },
     clearRenderer: function () {
-      var VM = this;
-      var renderer = VM.renderer;
+      var VM = this
+      var renderer = VM.renderer
       if (renderer) {
-        renderer.dispose();
-        renderer.forceContextLoss();
-        renderer.context = null;
-        renderer.domElement = null;
-        renderer.clear();//清除场景
-        VM.renderer = null;
+        renderer.dispose()
+        renderer.forceContextLoss()
+        renderer.context = null
+        renderer.domElement = null
+        renderer.clear()//清除场景
+        VM.renderer = null
       }
 
 
     },
     /**
      * 清空当前obj对象的缓存
-     * @param object object3D对象或mesh对象
+     * @param group object3D对象或mesh对象
      * */
     clearCache: function (group) {
-      if (!group || !group.traverse) return;
+      if (!group || !group.traverse) {
+        return
+      }
       // 删除掉所有的模型组内的mesh
       group.traverse(function (item) {
         if (item instanceof THREE.Mesh) {
-          item.geometry.dispose(); // 删除几何体
+          item.geometry.dispose() // 删除几何体
           if (Array.isArray(item.material)) {
             item.material.forEach(function (item) {
-              item.dispose();
+              item.dispose()
             })
           } else {
-            item.material.dispose(); // 删除材质
+            item.material.dispose() // 删除材质
           }
 
         }
-      });
-      this.scene.remove(group);
+      })
+      this.scene.remove(group)
     },
     //原来写在外面的方法
     threeD_alarm_ajax: function () {//模型数据交互
-      var VM = this;
+      var VM = this
       if (!VM.activatedBoo || !isUpdate) {//需要先判断一些isUpdate是不是存在
         return
       }
       VM.$axios({
-        method: 'post',
+        method: "post",
         data: {type: VM.viewFlag},//接口优化，针对不同模块传入不同的值，/*1:温度云图2：容量云图3：安防视图4：3D视图5：微型，小型模块 6: 容量柱图*/
         timeout: 4000,
         url: "/home.cgi/get_cabinet_list"
-      }).then(function (data) {
-        if (Object.prototype.toString.call(data) !== '[object Object]'){//timeout也会进这里
-          return
-        }
-        // data.diff = 1;
-        VM.current_flag++;
-        VM.Dataobj = [];
-        VM.Nameobj = [];
-        VM.NewNameobj = [];
-        if (VM.Timeinterval_3d) {
-          clearTimeout(VM.Timeinterval_3d);
-        }
-        VM.Timeinterval_3d = null;
-        VM.animationFlag = 0;
-        if (!ifNullData(data) && !ifNullData(data.data) && !ifNullData(data.data.list)) {//机柜数据不为空
-          // data.diff = 0;
-          if (!VM.isRender) {//渲染中
-            return;
+      })
+        .then(function (data) {
+          // data.diff = 1;
+          if (Object.prototype.toString.call(data) !== "[object Object]") {//timeout也会进这里
+            return
           }
-          if (VM.cube.length == 0) {//机柜没有创建
-            VM.isRender = false;
-            VM.vH = [];
-            VM.cubeArry = [];
-            VM.render_dispose();//清除缓存
-            VM.threeD_alarm_ajaxData(data.data);//处理数据
-            VM.threeD_main();//三维模型初始化
-            VM.cubeArry_old = data.data.list;
-            setTimeout(function () {
-              //if(VM.renderer){
-              //  VM.renderer.clear();//清除场景
-              //  VM.render_render();
-              //  VM.isRender = true;
-              //}
-              VM.isRender = true;
-            }, 2000);
-            VM.isRender = true;
-          } else if (data.data.list.length == VM.cubeArry_old.length) {//机柜数量不变
-            if (data.diff == 1) {//数值不同时
-              VM.threeD_alarm_ajaxData(data.data);//处理数据
-              VM.animation('threeD_alarm_ajax');//动画
-            } else if (data.diff == 0 && VM.Loadover == 0) {//数值不变动+加载结束
-              //if(VM.cube[0].material.needsUpdate==true){
-              //  VM.no_animation();//不更新材质
-              //}
-            }
-          } else {//机柜数量变动--重新渲染
-            if (VM.LCD == 1) {
-              clearInterval(VM.mainThreeI);
-              save_popready(0, '机柜数量发生变化，需重新登录', function () {
-                VM.goto_login();
-              });
+          VM.current_flag++
+          VM.Dataobj = []
+          VM.Nameobj = []
+          VM.NewNameobj = []
+          if (VM.Timeinterval_3d) {
+            clearTimeout(VM.Timeinterval_3d)
+          }
+          VM.Timeinterval_3d = null
+          VM.animationFlag = 0
+          if (!ifNullData(data) && !ifNullData(data.data) && !ifNullData(data.data.list)) {//机柜数据不为空
+            // data.diff = 0;
+            if (!VM.isRender) {//渲染中
               return
             }
-            VM.webglcontextlost();
-            VM.webglcontextrestored();
+            //以单排16为最低值，初始视角70，增加机柜之后相应比例减小视角
+            if (VM.viewFlag !== 5 && data.data.list.length / 2 > VM.cabinetMax) {//剔除 微型，小型模块 单排超过16个需要重新设置视觉大小 3D模型中这个长度一定为双数
+              VM.FocalLength = VM.oldFocalLength - (VM.FocalPer * ((data.data.list.length / 2) - VM.cabinetMax))
+            }
+            if (VM.cube.length === 0) {//机柜没有创建
+              VM.isRender = false
+              VM.vH = []
+              VM.cubeArry = []
+              VM.render_dispose()//清除缓存
+              VM.threeD_alarm_ajaxData(data.data)//处理数据
+              VM.threeD_main()//三维模型初始化
+              VM.cubeArry_old = data.data.list
+              setTimeout(function () {
+                //if(VM.renderer){
+                //  VM.renderer.clear();//清除场景
+                //  VM.render_render();
+                //  VM.isRender = true;
+                //}
+                VM.isRender = true
+              }, 2000)
+              VM.isRender = true
+            } else if (data.data.list.length === VM.cubeArry_old.length) {//机柜数量不变
+              if (data.diff === 1) {//数值不同时
+                VM.threeD_alarm_ajaxData(data.data)//处理数据
+                VM.animation("threeD_alarm_ajax")//动画
+              } else if (data.diff === 0 && VM.Loadover === 0) {//数值不变动+加载结束
+                //if(VM.cube[0].material.needsUpdate==true){
+                //  VM.no_animation();//不更新材质
+                //}
+              }
+            } else {//机柜数量变动--重新渲染
+              if (VM.LCD === 1) {
+                clearInterval(VM.mainThreeI)
+                save_popready(0, "机柜数量发生变化，需重新登录", function () {
+                  VM.goto_login()
+                })
+                return
+              }
+              VM.webglcontextlost()
+              VM.webglcontextrestored()
+            }
+          } else {//没有机柜
+            if (VM.cubeArry_old.length !== 0) {//之前存在机柜
+              VM.webglcontextlost()
+              VM.webglcontextrestored(0)
+            }
+            VM.isLoading = false
           }
-        } else {//没有机柜
-          if (VM.cubeArry_old.length != 0) {//之前存在机柜
-            VM.webglcontextlost();
-            VM.webglcontextrestored(0);
-          }
-          VM.isLoading = false;
-        }
-        VM.refreshF = 0;
-      });
+          VM.refreshF = 0
+        })
     },
     threeD_alarm_ajaxData: function (returnData) {//处理机柜数据，渲染顺序，根据返回机柜list顺序，单数在后面，双数在前面，一前一后
-      var VM = this;
-      VM.IS_Alarm = 0;
-      var position_limit = 5;
-      VM.temp_camera_list = returnData.pos_list || [];
-      var min_hot = VM.get_min_max_data(returnData.list,VM.key_hot,VM.key_way_hot);
-      var min_cold = VM.get_min_max_data(returnData.list,VM.key_cold,VM.key_way_cold);
-      var max_hot = VM.get_min_max_data(returnData.list,VM.key_hot,VM.key_way_hot,true);//获取当前所有数据的最大值
-      var max_cold = VM.get_min_max_data(returnData.list,VM.key_cold,VM.key_way_cold,true);//获取当前所有数据的最大值
+      var VM = this
+      VM.IS_Alarm = 0
+      var position_limit = 5
+      VM.temp_camera_list = returnData.pos_list || []
+      // var min_hot = VM.get_min_max_data(returnData.list, VM.key_hot, VM.key_way_hot)
+      // var min_cold = VM.get_min_max_data(returnData.list, VM.key_cold, VM.key_way_cold)
+      // var max_hot = VM.get_min_max_data(returnData.list, VM.key_hot, VM.key_way_hot, true)//获取当前所有数据的最大值
+      // var max_cold = VM.get_min_max_data(returnData.list, VM.key_cold, VM.key_way_cold, true)//获取当前所有数据的最大值
 
       // VM.temp_default[VM.key_hot] = !ifNullData(min_hot) ? min_hot : 22;//根据返回值设置最小值，如果没有返回值，需要重新设置为默认的
       // VM.temp_default[VM.key_cold] = !ifNullData(min_cold) ? min_cold : 18;//根据返回值设置最小值，如果没有返回值，需要重新设置为默认的
       // VM.all_max_hot = !ifNullData(max_hot) && max_hot > 22 ? max_hot : 22;//根据返回值设置最小值，如果没有返回值，需要重新设置为默认的
       // VM.all_max_cold = !ifNullData(max_cold) && max_cold > 18 ? max_cold : 18;//根据返回值设置最小值，如果没有返回值，需要重新设置为默认的
 
-      var is_width_change = false;
+      var is_width_change = false
 
       $.each(returnData.list, function (key, value) {
-        var numb = Number(value.box_index) - 1;//顺序
-        if(is_width_change){
+        var numb = Number(value.box_index) - 1//顺序
+        if (is_width_change) {
           return false
         }
-        if (!ifNullData(VM.cubeArry_old) && VM.cubeArry_old[numb].width !== value.width){//判断某个机柜宽度是否发生了变化
-          is_width_change = true;
-          VM.webglcontextlost();
-          VM.webglcontextrestored();
+        if (!ifNullData(VM.cubeArry_old) && VM.cubeArry_old[numb].width !== value.width) {//判断某个机柜宽度是否发生了变化
+          is_width_change = true
+          VM.webglcontextlost()
+          VM.webglcontextrestored()
           return false
         }
         if (!VM.cubeArry[numb]) {
           VM.cubeArry[numb] = {}
         }
-        VM.cubeArry[numb]['is_alarm'] = value.is_alarm;//告警等级--判断机柜是否异常,1告警，0正常
-        VM.cubeArry[numb]['alarm'] = value.alarm_level;//告警等级--判断机柜是否异常
-        VM.cubeArry[numb]['name'] = dataValidation(value.name_f);//名称
-        VM.cubeArry[numb]['type'] = value.type_f;//类型
-        VM.cubeArry[numb]['width'] = value.width;//宽度
-        VM.cubeArry[numb]['index'] = value.dev_index;//id
-        VM.cubeArry[numb]['box_index'] = value.box_index;//id
+        VM.cubeArry[numb]["is_alarm"] = value.is_alarm//告警等级--判断机柜是否异常,1告警，0正常
+        VM.cubeArry[numb]["alarm"] = value.alarm_level//告警等级--判断机柜是否异常
+        VM.cubeArry[numb]["name"] = dataValidation(value.name_f)//名称
+        VM.cubeArry[numb]["type"] = value.type_f//类型
+        VM.cubeArry[numb]["width"] = value.width//宽度
+        VM.cubeArry[numb]["index"] = value.dev_index//id
+        VM.cubeArry[numb]["box_index"] = value.box_index//id
 
-        VM.cubeArry[numb][VM.key_way_cold] = VM.complete_tem_data(value.cold_passageway, position_limit, VM.key_cold,numb);//冷通道
-        VM.cubeArry[numb][VM.key_way_hot] = VM.complete_tem_data(value.hot_passageway, position_limit, VM.key_hot,numb);//热通道
-        // VM.cubeArry[numb][VM.key_way_cold] = value.cold_passageway || [];//冷通道
-        // VM.cubeArry[numb][VM.key_way_hot] = value.hot_passageway|| [];//热通道
+        if (!VM.is_qt) {
+          VM.cubeArry[numb][VM.key_way_cold] = VM.complete_tem_data(value.cold_passageway, position_limit, VM.key_cold, numb);//冷通道
+          VM.cubeArry[numb][VM.key_way_hot] = VM.complete_tem_data(value.hot_passageway, position_limit, VM.key_hot, numb);//热通道
+          // VM.cubeArry[numb][VM.key_way_cold] = value.cold_passageway || [];//冷通道
+          // VM.cubeArry[numb][VM.key_way_hot] = value.hot_passageway|| [];//热通道
 
-        // VM.cubeArry[numb]['pdc_rate'] = value.pdc_rate || (Math.random() * 100).toFixed(0);//使用率
-        // VM.cubeArry[numb]['cooling_rate'] = value.cooling_rate || (Math.random() * 100).toFixed(0);//使用率
-        // VM.cubeArry[numb]['u_rate'] = value.u_rate || (Math.random() * 100).toFixed(0);//U位
-        VM.cubeArry[numb]['pdc_rate'] = value.pdc_rate;//配电
-        VM.cubeArry[numb]['cooling_rate'] = value.cooling_rate;//制冷
-        VM.cubeArry[numb]['u_rate'] = value.u_rate;//u位
+          // VM.cubeArry[numb]['pdc_rate'] = value.pdc_rate || (Math.random() * 100).toFixed(0);//使用率
+          // VM.cubeArry[numb]['cooling_rate'] = value.cooling_rate || (Math.random() * 100).toFixed(0);//使用率
+          // VM.cubeArry[numb]['u_rate'] = value.u_rate || (Math.random() * 100).toFixed(0);//U位
+          VM.cubeArry[numb]['pdc_rate'] = value.pdc_rate;//配电
+          VM.cubeArry[numb]['cooling_rate'] = value.cooling_rate;//制冷
+          VM.cubeArry[numb]['u_rate'] = value.u_rate;//u位
 
-        // VM.cubeArry[numb]['temp_cold'] = value.temp_cold || (Math.random() * 100).toFixed(0);//温度柱图的冷通道温度
-        // VM.cubeArry[numb]['temp_hot'] = value.temp_hot || (Math.random() * 100).toFixed(0);//温度柱图的冷通道温度
-        VM.cubeArry[numb]['temp_cold'] = value.temp_cold;//温度柱图的热通道温度
-        VM.cubeArry[numb]['temp_hot'] = value.temp_hot;//温度柱图的热通道温度
-        // VM.cubeArry[numb]['temp_hot'] = 100;//温度柱图的热通道温度
-        // VM.cubeArry[numb]['temp_hot'] = 3;//温度柱图的热通道温度
+          // VM.cubeArry[numb]['temp_cold'] = value.temp_cold || (Math.random() * 100).toFixed(0);//温度柱图的冷通道温度
+          // VM.cubeArry[numb]['temp_hot'] = value.temp_hot || (Math.random() * 100).toFixed(0);//温度柱图的冷通道温度
+          VM.cubeArry[numb]['temp_cold'] = value.temp_cold;//温度柱图的热通道温度
+          VM.cubeArry[numb]['temp_hot'] = value.temp_hot;//温度柱图的热通道温度
+          // VM.cubeArry[numb]['temp_hot'] = 100;//温度柱图的热通道温度
+          // VM.cubeArry[numb]['temp_hot'] = 3;//温度柱图的热通道温度
 
-        if (!VM.cubeArry[numb]['old_pdc_rate']) {//注意 此处的命名要使用 old_ 加上原来属性名字，否则下面第二次渲染时值的判断会出错
-          VM.cubeArry[numb]['old_pdc_rate'] = value.pdc_rate;//使用率
-          VM.has_old_pdc_rate_set = true;
-        }
-        if (!VM.cubeArry[numb]['old_cooling_rate']) {
-          VM.cubeArry[numb]['old_cooling_rate'] = value.cooling_rate;//使用率
-          VM.has_old_cooling_rate_set = true;
-        }
-        if (!VM.cubeArry[numb]['old_u_rate']) {
-          VM.cubeArry[numb]['old_u_rate'] = value.u_rate;//U位
-          VM.has_old_u_rate = true;
+          if (!VM.cubeArry[numb]['old_pdc_rate']) {//注意 此处的命名要使用 old_ 加上原来属性名字，否则下面第二次渲染时值的判断会出错
+            VM.cubeArry[numb]['old_pdc_rate'] = value.pdc_rate;//使用率
+            VM.has_old_pdc_rate_set = true;
+          }
+          if (!VM.cubeArry[numb]['old_cooling_rate']) {
+            VM.cubeArry[numb]['old_cooling_rate'] = value.cooling_rate;//使用率
+            VM.has_old_cooling_rate_set = true;
+          }
+          if (!VM.cubeArry[numb]['old_u_rate']) {
+            VM.cubeArry[numb]['old_u_rate'] = value.u_rate;//U位
+            VM.has_old_u_rate = true;
+          }
         }
         //处理一下数据,如果没有冷热通道数据的话自动补全, 当前5个位置
         if (value.type_f == 106) {//机柜
@@ -711,36 +943,39 @@ export default {
         }
       });
     },
-    complete_tem_data: function (passageway, position_limit, way,numb) {
+    complete_tem_data: function (passageway, position_limit, way, numb) {
       var VM = this;
       var per = VM.temp_default[way];
       var posi_obj_demo = {"position": 1, "temp": per};
       var position_arr = [];//位置列表
       var postion_judge_obj = {
-        1:[2],
-        2:[1,3],
-        3:[2,4],
-        4:[3,5],
-        5:[4],
+        1: [2],
+        2: [1, 3],
+        3: [2, 4],
+        4: [3, 5],
+        5: [4],
       };//需要判断的位置相应对象
       for (let i = 1; i <= position_limit; i++) {
         position_arr.push(i)
       }
-      // if (VM.viewFlag === 1){
-      //     passageway = [
-      //       {
-      //         position: 1,
-      //         temp: 28.5
-      //       },
-      //       {
-      //         position: 3,
-      //         temp: 30
-      //       },
-      //       {
-      //         position: 5,
-      //         temp: 30
-      //       },
-      //     ]
+      // if (VM.viewFlag === 1 && numb === 1){
+      //   passageway = [
+      //     {
+      //       position: 1,
+      //       temp: 23.6
+      //     },
+      //     {
+      //       position: 3,
+      //       temp: 23.6
+      //     },
+      //     {
+      //       position: 5,
+      //       temp: 23.6
+      //     },
+      //   ];
+      //   // if (numb === 1){
+      //   //   passageway[2].temp = 50
+      //   // }
       // }
       if (ifNullData(passageway)) {//如果没有通道温度数据
         passageway = [];
@@ -751,11 +986,15 @@ export default {
         }
       } else if (passageway.length < position_limit) {//如果只有一部分通道温度数据
         var flag = true;//是否需要计算平均值
-        if (passageway.length === 1 && passageway[0].temp >= 30){//整个机柜只有一个且超过30度，整列机柜都变红
+        if (passageway.length === 1 && passageway[0].temp >= 30) {//整个机柜只有一个且超过30度，整列机柜都变红
           flag = false;
           posi_obj_demo.temp = passageway[0].temp;
         }
-        for (let k = 0; k < passageway.length; k++) {
+        for (let k = passageway.length - 1; k >= 0; k--) {
+          if (passageway[k].temp_alarm === 1) {// 温湿度异常就不用这条数据了
+            passageway.splice(k, 1);
+            continue
+          }
           var pos_index = position_arr.indexOf(passageway[k].position);
           passageway[k].baseroot = true;//代表最原始的数据
           if (pos_index !== -1) {
@@ -766,14 +1005,19 @@ export default {
           var new_posi_obj1 = JSON.parse(JSON.stringify(posi_obj_demo));
           var myPosition = position_arr[m];
           var pos_arr = postion_judge_obj[myPosition];//需要对比的位置
-          if (flag){
-            VM.filter_temp_data_fun(new_posi_obj1,per,passageway,pos_arr);
+          if (flag) {
+            VM.filter_temp_data_fun(new_posi_obj1, per, passageway, pos_arr);
           }
           new_posi_obj1.position = myPosition;
           passageway.push(new_posi_obj1)
         }
       }
-      VM.sort_fun(passageway,'position');
+      //存入一些机柜信息
+      passageway.forEach((item) => {
+        item.numb = numb
+        item.way = way
+      })
+      VM.sort_fun(passageway, "position")
       return passageway
     },
     /*
@@ -783,33 +1027,34 @@ export default {
     * 位置4如果没有值，判断位置3和位置5是否都有值，判断方法与位置2一致
     * 位置5如果没有值,判断位置4的是否有温度来进行计算平均值，如果没有，那就是默认值
     * */
-    filter_temp_data_fun(new_posi_obj,per,passageway,pos_arr){
-      var the_twins = passageway.filter(item => pos_arr.indexOf(item.position) >= 0);
-      if (the_twins.length === 1){
-        new_posi_obj.temp = (Number(the_twins[0].temp) + per) / 2;
-      }else if (the_twins.length >= 2){//防止后台出现位置重复问题，导致处理不生效，例如有两个位置1的
-        new_posi_obj.temp = (Number(the_twins[0].temp) + Number(the_twins[1].temp)) / 2;
+    filter_temp_data_fun(new_posi_obj, per, passageway, pos_arr) {
+      var the_twins = passageway.filter(item => pos_arr.indexOf(item.position) >= 0)
+      if (the_twins.length === 1) {
+        new_posi_obj.temp = (Number(the_twins[0].temp) + per) / 2
+      } else if (the_twins.length >= 2) {//防止后台出现位置重复问题，导致处理不生效，例如有两个位置1的
+        new_posi_obj.temp = (Number(the_twins[0].temp) + Number(the_twins[1].temp)) / 2
       }
     },
     ThreeDinterval: function () {//设置定时器，实时刷新数据
-      var VM = this;
-      VM.isLoading = true;//进度gif
-      VM.TD_sure_demo = null;
+      var VM = this
+      VM.isLoading = true//进度gif
+      VM.TD_sure_demo = null
+      console.time("alltime")
       if (VM.isWebGl) {//非-B液晶屏  判断是否兼容three.js
-        clearInterval(this.mainThreeI);
-        VM.current_flag = 0;
-        this.threeD_alarm_ajax();
+        clearInterval(this.mainThreeI)
+        VM.current_flag = 0
+        this.threeD_alarm_ajax()
         VM.mainThreeI = setInterval(function () {
-          if (VM.refreshF == 0) {
-            VM.threeD_alarm_ajax();
+          if (VM.refreshF === 0) {
+            VM.threeD_alarm_ajax()
           }
         }, 5000);
-        VM.obj_action();
+        // VM.obj_action();
       }
     },
     threeD_main: function () {//三维模型初始化
       var VM = this;
-      if (VM.LCD == 1) {//1液晶屏,0是PC端//液晶屏上展示pc端代码--大屏展示:放大2倍，缩小0.5倍
+      if (VM.LCD === 1) {//1液晶屏,0是PC端//液晶屏上展示pc端代码--大屏展示:放大2倍，缩小0.5倍
         VM.canvasScal = 2;
         VM.Dwidth = VM.canvasScal * $("#main_model").width();
         VM.Dheight = VM.canvasScal * $("#main_model").height();
@@ -823,29 +1068,31 @@ export default {
       if (VM.LCD === 0) {
         // VM.initStats();//显示帧率
       }
-      // VM.init_smoke();//导入烟雾模型
+      // window.addEventListener("resize", VM.onWindowResize, false)
     },
     initThree: function () {//渲染器
       var VM = this;
       VM.renderer = new THREE.WebGLRenderer({
         antialias: true, alpha: true,//抗锯齿效果 底色透明
         shadowMap: true,//它包含阴影贴图的引用
-        setPixelRatio: window.devicePixelRatio,//设置设备像素比。通常用于避免HiDPI设备上绘图模糊
-      });
-      VM.renderer.setSize(VM.Dwidth, VM.Dheight);//设置渲染器大小
-      VM.renderer.sortObjects = false;// //是否排列对象 默认是true
-      VM.renderer.shadowMap.enabled = true;//阴影是否启用
-      VM.renderer.shadowMapSoft = true;//阴影柔化
-      VM.renderer.shadowMap.type = THREE.PCFSoftShadowMap;//阴影类型
-      $('#main_model').find('canvas').remove();//清空canvas对象
-      document.getElementById('main_model') && document.getElementById('main_model').appendChild(VM.renderer.domElement);//添加canvas对象
-      VM.renderer.setClearColor(0xFFFFFF, 0.0);//设置清除样色
-      VM.renderer.localClippingEnabled = true;//剪裁平面是否启用 空间中与平面的符号距离为负的点被剪裁（未渲染）
-      VM.renderer.domElement.addEventListener('mousedown', VM.LCD === 0 ? VM.onDocumentMouseDown : VM.onDocumentMouseDownFun, false);
-      VM.renderer.domElement.addEventListener('mouseup', VM.onDocumentMouseup, false);
-      VM.renderer.domElement.addEventListener( 'mousemove', VM.onDocumentMove, false );
-      VM.renderer.domElement.addEventListener("webglcontextlost", VM.webglcontextlost, false);//上下文丢失--停止循环，等待恢复
-      VM.renderer.domElement.addEventListener("webglcontextrestored", VM.webglcontextrestored, false);//上下文恢复--重新渲染
+        setPixelRatio: window.devicePixelRatio//设置设备像素比。通常用于避免HiDPI设备上绘图模糊
+      })
+      VM.renderer.setSize(VM.Dwidth, VM.Dheight)//设置渲染器大小
+      VM.renderer.sortObjects = false// //是否排列对象 默认是true
+      VM.renderer.shadowMap.enabled = true//阴影是否启用
+      VM.renderer.shadowMapSoft = true//阴影柔化
+      VM.renderer.shadowMap.type = THREE.PCFSoftShadowMap//阴影类型
+      $("#main_model").find("canvas").remove()//清空canvas对象
+      document.getElementById("main_model") && document.getElementById("main_model").appendChild(VM.renderer.domElement)//添加canvas对象
+      VM.renderer.setClearColor(0xFFFFFF, 0.0)//设置清除样色
+      VM.renderer.localClippingEnabled = true//剪裁平面是否启用 空间中与平面的符号距离为负的点被剪裁（未渲染）
+      VM.renderer.domElement.addEventListener("mousedown", VM.onDocumentMouseDown, false)
+      VM.renderer.domElement.addEventListener("mouseup", VM.onDocumentMouseup, false)
+      VM.renderer.domElement.addEventListener("touchstart", VM.onDocumentMouseDown, false)
+      VM.renderer.domElement.addEventListener("touchend", VM.onDocumentMouseup, false)
+      VM.renderer.domElement.addEventListener("mousemove", VM.onDocumentMove, false)
+      VM.renderer.domElement.addEventListener("webglcontextlost", VM.webglcontextlost, false)//上下文丢失--停止循环，等待恢复
+      VM.renderer.domElement.addEventListener("webglcontextrestored", VM.webglcontextrestored, false)//上下文恢复--重新渲染
     },
     webglcontextlost: function () {//上下文丢失--停止循环，等待恢复
       var VM = this;
@@ -855,12 +1102,15 @@ export default {
     webglcontextrestored: function (flag) {//上下文恢复--重新渲染
       var VM = this;
       if (VM.renderer) {
-        VM.renderer.domElement.removeEventListener('mousedown', VM.LCD === 0 ? VM.onDocumentMouseDown : VM.onDocumentMouseDownFun, false);
-        VM.renderer.domElement.removeEventListener('mouseup', VM.onDocumentMouseup, false);
-        VM.renderer.domElement.removeEventListener( 'mousemove', VM.onDocumentMove, false );
-        VM.renderer.domElement.removeEventListener("webglcontextlost", VM.webglcontextlost, false);
-        VM.renderer.domElement.removeEventListener("webglcontextrestored", VM.webglcontextrestored, false);
-        VM.render_dispose();//解除绑定
+        VM.renderer.domElement.removeEventListener("mousedown", VM.onDocumentMouseDown, false)
+        VM.renderer.domElement.removeEventListener("mouseup", VM.onDocumentMouseup, false)
+        VM.renderer.domElement.removeEventListener("touchstart", VM.onDocumentMouseDown, false)
+        VM.renderer.domElement.removeEventListener("touchend", VM.onDocumentMouseup, false)
+        VM.renderer.domElement.removeEventListener("mousemove", VM.onDocumentMove, false)
+        VM.renderer.domElement.removeEventListener("mousemove", VM.onDocumentMove, false)
+        VM.renderer.domElement.removeEventListener("webglcontextlost", VM.webglcontextlost, false)
+        VM.renderer.domElement.removeEventListener("webglcontextrestored", VM.webglcontextrestored, false)
+        VM.render_dispose()//解除绑定
       }
       ie_CollectGarbage();
       VM.isLoading = true;
@@ -880,46 +1130,48 @@ export default {
       // VM.clock = new THREE.Clock();
     },
     initCamera: function () {//摄像机
-      var VM = this;
-      VM.CAMERA = new THREE.PerspectiveCamera(45, VM.Dwidth / VM.Dheight, 1, 10000);
-      VM.CAMERA.position.set(VM.reset_position.x, VM.reset_position.y, VM.reset_position.z);
-      if (VM.LCD === 0) {
-        VM.CONTROLS = new OrbitControls(VM.CAMERA, VM.renderer.domElement);
-        VM.CONTROLS.addEventListener('change', VM.OrbitControlsChange);
-        VM.CONTROLS.maxPolarAngle = Math.PI * 0.5;//半圆
-        VM.CONTROLS.target = new THREE.Vector3(VM.reset_camera.x, VM.reset_camera.y, VM.reset_camera.z);//视角，与相机视角一致，必须先设置视角在相机设置视角之前
-        VM.CONTROLS.minDistance = 1000;//相机向内移动多少
-        VM.CONTROLS.maxDistance = 3500;//相机向外移动多少
-        VM.CONTROLS.autoRotate = false;//自动旋转开关，以自动围绕目标旋转
+      var VM = this
+      VM.CAMERA = new THREE.PerspectiveCamera(45, VM.Dwidth / VM.Dheight, 1, 10000)
+      VM.CAMERA.position.set(VM.reset_position.x, VM.reset_position.y, VM.reset_position.z)
+      if (VM.LCD === 0 || !VM.is_qt) {//不是QT
+        VM.CONTROLS = new OrbitControls(VM.CAMERA, VM.renderer.domElement)
+        VM.CONTROLS.addEventListener("change", VM.OrbitControlsChange)
+        VM.CONTROLS.maxPolarAngle = Math.PI * 0.5//半圆
+        VM.CONTROLS.target = new THREE.Vector3(VM.reset_camera.x, VM.reset_camera.y, VM.reset_camera.z)//视角，与相机视角一致，必须先设置视角在相机设置视角之前
+        VM.CONTROLS.minDistance = 1000//相机向内移动多少
+        VM.CONTROLS.maxDistance = 3500//相机向外移动多少
+        VM.CONTROLS.autoRotate = false//自动旋转开关，以自动围绕目标旋转
         // VM.CONTROLS.autoRotateSpeed = 4;//自动旋转开关，以自动围绕目标旋转
-        VM.CONTROLS.rotateSpeed = 0.15;//旋转速度，鼠标左键
-        VM.CONTROLS.enableDamping = true;//使动画循环使用时阻尼或自转 意思是否有惯性
-        VM.CONTROLS.dampingFactor = 0.2;//阻尼惯性有多大 意思是鼠标拖拽旋转灵敏度
-        VM.CONTROLS.enableKeys = false;//是否打开支持键盘方向键操作
-        VM.CONTROLS.enablePan = false;//启用或禁用摄像机平移，默认为true。防止键盘ctrl控制
-        VM.CONTROLS.update();
-        VM.CONTROLS.saveState();//保存初始状态，不然reset()会回不到之前的位置;
+        VM.CONTROLS.rotateSpeed = 0.15//旋转速度，鼠标左键
+        VM.CONTROLS.enableDamping = true//使动画循环使用时阻尼或自转 意思是否有惯性
+        VM.CONTROLS.dampingFactor = 0.2//阻尼惯性有多大 意思是鼠标拖拽旋转灵敏度
+        VM.CONTROLS.enableKeys = false//是否打开支持键盘方向键操作
+        VM.CONTROLS.enablePan = false//启用或禁用摄像机平移，默认为true。防止键盘ctrl控制
+        VM.CONTROLS.update()
+        VM.CONTROLS.saveState()//保存初始状态，不然reset()会回不到之前的位置;
         VM.CONTROLS.mouseButtons = {
           LEFT: THREE.MOUSE.LEFT,
           MIDDLE: THREE.MOUSE.MIDDLE,
           // RIGHT: VM.LCD === 0 ? THREE.MOUSE.RIGHT : null,//液晶屏禁用右键
-          RIGHT: null,//禁用右键
+          RIGHT: null//禁用右键
         }
       }
-      VM.CAMERA.lookAt(new THREE.Vector3(VM.reset_camera.x, VM.reset_camera.y, VM.reset_camera.z));//VM.scene.position
-      VM.CAMERA.setFocalLength(VM.FocalLength);
-      VM.CAMERA.updateMatrixWorld();
+      VM.CAMERA.lookAt(new THREE.Vector3(VM.reset_camera.x, VM.reset_camera.y, VM.reset_camera.z))//VM.scene.position
+      VM.CAMERA.setFocalLength(VM.FocalLength)
+      VM.CAMERA.updateMatrixWorld(true)
     },
     initLight: function () {//光源
-      var VM = this;
-      VM.scene.add(new THREE.AmbientLight((VM.viewFlag === 2 || VM.viewFlag === 6 ? 0x555555: 0x808080), VM.LCD === 0 ? (VM.viewFlag === 1 ? (VM.viewFlag === 2 ? 3: 3): 3) : 3)); //环境光
+      var VM = this
+      let viewFlag2_6 = VM.viewFlag === 2 || VM.viewFlag === 6
+      // VM.scene.add(new THREE.AmbientLight((VM.viewFlag === 2 || VM.viewFlag === 6 ? 0x555555: 0x808080), VM.LCD === 0 ? (VM.viewFlag === 1 ? (VM.viewFlag === 2 ? 3: 3): 3) : 3)); //环境光
+      VM.scene.add(new THREE.AmbientLight((viewFlag2_6 ? 0x555555 : 0x808080), viewFlag2_6 ? 3 : 3)) //环境光
 
-      var color = 0xffffff;
-      var intensity = (VM.viewFlag === 2 || VM.viewFlag === 6 ? 0.2: 0.3);
-      var distance = 10000;
-      var angle = Math.PI / 2;
-      var exponent = 0.75;
-      var decay = 1;
+      var color = 0xffffff
+      var intensity = (viewFlag2_6 ? 0.2 : 0.3)
+      var distance = 8000
+      var angle = Math.PI / 2
+      var exponent = 0.75
+      var decay = 1
 
       var spotLight1 = new THREE.SpotLight(color, intensity, distance, angle, exponent, decay);
       spotLight1.position.set(0, 1000, -1000);
@@ -949,7 +1201,7 @@ export default {
       VM.spotLight2 = spotLight2;
       VM.scene.add(spotLight2);
 
-      if (VM.LCD === 0){//PC多打一盏灯
+      if (VM.LCD === 0) {//PC多打一盏灯
         var spotLight3 = new THREE.SpotLight(color, intensity, distance, angle, exponent, decay);
         spotLight3.position.set(1000, -1000, 1000);
         spotLight3.shadow.camera.near = 2;
@@ -1007,6 +1259,7 @@ export default {
       if (VM.renderer) {
         VM.renderer.render(VM.scene, VM.CAMERA);
       }
+      this.isControlsChange = false;
     },
     cal_model_length_unit: function (data) {
       var VM = this;
@@ -1031,184 +1284,17 @@ export default {
     initModel: function () {//导入模型
       var VM = this;
       VM.objGroup = new THREE.Group();//成组
-      var mtlLoader = new MTLLoader();
-      mtlLoader.setPath(VM.basicURL);
       VM.half_ll = VM.cal_model_length_unit(VM.cubeArry[0]);//前门
       VM.half_rr = VM.cal_model_length_unit(VM.cubeArry[VM.cubeArry.length - 1]);//后门
-      mtlLoader.load('jg_02.mtl', function (materials) {//普通机柜
-        materials.preload();
-        var objLoader = new OBJLoader();
-        objLoader.setMaterials(materials);
-        objLoader.setPath(VM.basicURL);
-        objLoader.load('jg_02.obj', function (oo) {
-          VM.changeMaterial(oo);
-          var objLengh = 0;
-          for (var i = 0; i < VM.cubeArry.length; i++) {
-            objLengh = objLengh + VM.cal_model_length(i);
-
-            VM.cubeArry[i]['x'] = objLengh;
-            VM.cubeArry[i + 1]['x'] = objLengh;
-            if (VM.cubeArry[i].width != 1) {
-              var obj_clone = oo.clone();
-              var Jigui_01 = obj_clone.getObjectByName('Jigui_01');
-              var Jigui_02 = obj_clone.getObjectByName('Jigui_02');
-              if(VM.viewFlag === 2){
-                // Jigui_01.scale.set(1,VM.objCabinetHeightCoe,1);//将模型进行一个拉伸
-                // Jigui_02.scale.set(1,VM.objCabinetHeightCoe,1);//将模型进行一个拉伸
-                // VM.changeDevMaterialOpacity(obj_clone,'Box001');//机柜底座
-              }
-              VM.cube[i] = Jigui_01;
-              VM.cube[i + 1] = Jigui_02;
-              obj_clone.position.set(objLengh, 0, 0);
-              VM.objGroup.add(obj_clone);
-              // VM.set_line_geometry(obj_clone,{x:objLengh - VM.half_ll - VM.objSingleWidth ,y:0,z:0})
-            }
-            i++;//这个很重要，不然会重读计算
-          }
-          VM.objLength = objLengh;
-          oo = null;
-          //前门
-          var mtlLoader_door0 = new MTLLoader();
-          mtlLoader_door0.setPath(VM.basicURL);
-          mtlLoader_door0.load('men_01.mtl', function (materials) {
-            materials.preload();
-            var objLoader = new OBJLoader();
-            objLoader.setMaterials(materials);
-            objLoader.setPath(VM.basicURL);
-            objLoader.load('men_01.obj', function (oo) {
-              //找一下logo  Kehua_logo_02
-              VM.changeMaterial(oo);
-              var obj_clone = oo.clone();
-              VM.changeDevMaterialOpacity(obj_clone, 'Kehua_logo_02', {isTransparent: true});//logo
-              VM.changeDevMaterialOpacity(obj_clone, 'boli_01', {isTransparent: true, viewFlag: 1});//玻璃
-              VM.changeDevMaterialOpacity(obj_clone, 'boli_02', {isTransparent: true, viewFlag: 1});//玻璃
-              VM.changeDevMaterialOpacity(obj_clone, 'Rectangle058', {isTransparent: true, viewFlag: 1});//门框四周
-              VM.changeDevMaterialOpacity(obj_clone, 'Box314', {isTransparent: true, viewFlag: 1});//门框上面
-              VM.changeDevMaterialOpacity(obj_clone, 'Box345', {isTransparent: true, viewFlag: 1});//门框底部
-              VM.changeDevMaterialOpacity(obj_clone, 'Box342', {isTransparent: true, viewFlag: 1});//门框上面靠里
-              obj_clone.position.set(0 - objLengh / 2 - VM.half_ll - 9, 0, 0);
-              // if (VM.viewFlag !== 1 && VM.viewFlag !== 2) {
-              // if (VM.viewFlag !== 1) {
-              VM.scene.add(obj_clone);
-              // VM.set_line_geometry(oo,{x:0 - objLengh / 2 - VM.half_ll - 9,y:0,z:0});
-              // }
-              VM.Loadover--;//后门
-              // if (!VM.has_door){
-
-                var mtlLoader_door1 = new MTLLoader();
-                mtlLoader_door1.setPath(VM.basicURL);
-                mtlLoader_door1.load('men_02.mtl', function (materials) {
-                  materials.preload();
-                  var objLoader = new OBJLoader();
-                  objLoader.setMaterials(materials);
-                  objLoader.setPath(VM.basicURL);
-                  objLoader.load('men_02.obj', function (oo) {
-                    //找一下logo  Kehua_logo_01
-                    // VM.has_door = true;
-                    VM.changeMaterial(oo);
-                    var obj_clone = oo.clone();
-                    VM.changeDevMaterialOpacity(obj_clone, 'Kehua_logo_01', {isTransparent: true});
-                    VM.changeDevMaterialOpacity(obj_clone, 'boli_01', {isTransparent: true, viewFlag: 1});//玻璃
-                    VM.changeDevMaterialOpacity(obj_clone, 'boli_02', {isTransparent: true, viewFlag: 1});//玻璃
-                    VM.changeDevMaterialOpacity(obj_clone, 'Rectangle028', {isTransparent: true, viewFlag: 1});//门框四周
-                    VM.changeDevMaterialOpacity(obj_clone, 'Box021', {isTransparent: true, viewFlag: 1});//门框上面
-                    VM.changeDevMaterialOpacity(obj_clone, 'Box280', {isTransparent: true, viewFlag: 1});//门框底部
-                    VM.changeDevMaterialOpacity(obj_clone, 'Box066', {isTransparent: true, viewFlag: 1});//门框上面靠里
-                    obj_clone.position.set(objLengh / 2 + VM.half_rr + 9, 0, 0);
-                    // if (VM.viewFlag !== 1 && VM.viewFlag !== 2) {
-                    // if (VM.viewFlag !== 1) {
-                    VM.scene.add(obj_clone);
-                    // VM.set_line_geometry(oo,{x:objLengh / 2 + VM.half_rr + 9,y:0,z:0});
-                    // }
-                    VM.Loadover--;
-
-                    //空调
-                    var mtlLoader_air = new MTLLoader();
-                    mtlLoader_air.setPath(VM.basicURL);
-                    mtlLoader_air.load('jg_03.mtl', function (materials) {
-                      materials.preload();
-                      var objLoader = new OBJLoader();
-                      objLoader.setMaterials(materials);
-                      objLoader.setPath(VM.basicURL);
-                      objLoader.load('jg_03.obj', function (oo) {
-                        var objLengh = 0;
-                        VM.changeMaterial(oo);
-                        for (var i = 0; i < VM.cubeArry.length; i++) {
-                          objLengh = objLengh + VM.cal_model_length(i);
-                          if (VM.cubeArry[i].width == 1) {//两排只要有一个是空调柜,另一个一定是空调柜
-                            // if (VM.cubeArry[i].width == 1) {
-                            var obj_clone = oo.clone();
-
-                            var Jigui_01 = obj_clone.getObjectByName('Jigui_01');
-                            var Jigui_02 = obj_clone.getObjectByName('Jigui_02');
-                            if(VM.viewFlag === 2){
-                              // Jigui_01.scale.set(1,VM.objCabinetHeightCoe,1);//将模型进行一个拉伸
-                              // Jigui_02.scale.set(1,VM.objCabinetHeightCoe,1);//将模型进行一个拉伸
-                              // VM.changeDevMaterialOpacity(obj_clone,'Box001');//机柜底座
-                            }
-                            VM.cube[i] = Jigui_01;
-                            VM.cube[i + 1] = Jigui_02;
-                            obj_clone.position.set(objLengh, 0, 0);
-                            VM.objGroup.add(obj_clone);
-                            // VM.set_line_geometry(obj_clone,{x:objLengh,y:0,z:0});
-                          }
-                          i++;
-                        }
-                        VM.objGroup.position.set(0 - objLengh / 2, 0, 0);
-                        VM.scene.add(VM.objGroup);
-                        VM.initObject(objLengh / 2);//机柜位置排列参考，在容量云图中所创建的立体模型位置排列
-                        VM.MmovL = objLengh / 2;
-                        VM.Loadover--;
-                        VM.animation('initModel');//动画
-                        VM.isLoading = false;//进度gif
-                        oo = null;
-                      }, VM.onProgress, VM.onError);
-                      materials = null;
-                    });
-                    mtlLoader_air = null;
-
-                  }, VM.onProgress, VM.onError);
-                  materials = null;
-                  objLoader = null;
-                });
-                mtlLoader_door1 = null;
-
-              // }
-            }, VM.onProgress, VM.onError);
-            objLoader = null;
-            materials = null;
-          });
-          mtlLoader_door0 = null;
-          //地板
-          // var newobjLengh = 0;
-          // for (let mm = 0; mm < VM.cubeArry.length; mm++) {
-          //   newobjLengh = newobjLengh + VM.cal_model_length(mm);
-          //   //整个模型 长60 宽60 高32.5
-          //   for (let kk = -2; kk <= 3; kk++) {//每一个循环六次，因为宽度是360，模型宽正好也是60，因为需要设置负值
-          //     var num = 1;//如果是最后一个了，需要多加载一列
-          //     if (mm === VM.cubeArry.length - 2){
-          //       num = 2;
-          //     }
-          //     for (let jj = 0; jj < num; jj++) {
-          //       var geometry = new THREE.BoxBufferGeometry( VM.objBottomWidth, VM.objBottomHeight, VM.objBottomLength);
-          //       var line = new THREE.LineSegments(
-          //         new THREE.EdgesGeometry( geometry ), new THREE.LineBasicMaterial( { color: 0x0096FF} ));
-          //       line.position.set(newobjLengh - VM.half_ll - VM.objSingleWidth * (1.5 - jj) , -VM.objBottomHeight / 2, kk * 60 - 30);
-          //       VM.scene.add( line );
-          //     }
-          //   }
-          //   mm ++;
-          // }
-          VM.initCameraDev();//安防设备
-          VM.init_heatmap_four_mesh();
-          VM.init_three_heat_map();//平面三个测试
-          // VM.heatmap_four_mesh_Timer = setInterval(function () {
-          //   // VM.init_heatmap_four_mesh();
-          // }, 500);
-        }, VM.onProgress, VM.onError);
-        objLoader = null;
-      });
-      mtlLoader = null;
+      VM.loadOtherView(true);// 先计算一次温度云图，不然位置会有重叠错位
+      // VM.loadNormalCabinet();
+      // VM.loadDoorFront();
+      // VM.loadDoorBack();
+      // VM.loadCabinetAir();
+      VM.preLoadNormalCabinet();
+      VM.preLoadDoorFront();
+      VM.preLoadDoorBack();
+      VM.preLoadCabinetAir();
     },
     /*
       * 在透明视图下针对不同的模型显示透明都不同
@@ -1218,13 +1304,31 @@ export default {
       if (!VM.isTransparent) {
         return
       }
-      let setAttr = function(material){
-        material.transparent=true;
-        material.opacity=(VM.viewFlag === 1 ? 0.5 : 0.1);
-        material.blendDstAlpha=(VM.viewFlag === 1 ? 0.5 : 0.1);
-        material.side=THREE.DoubleSide;
-        material.color.setHex(VM.viewFlag === 1 ? 0x8c9bbd : 0x9397bb);
-      };
+      let setAttr = function (material) {
+        material.transparent = true
+        material.opacity = (VM.viewFlag === 1 ? 0.5 : 0.1)
+        material.blendDstAlpha = (VM.viewFlag === 1 ? 0.5 : 0.1)
+        material.side = THREE.DoubleSide
+        material.color.setHex(VM.viewFlag === 1 ? 0x8c9bbd : 0x9397bb)
+      }
+      let opacity = 0.1
+      let blendDstAlpha = 0.1
+      let color = 0x9397bb
+      if (VM.viewFlag === 1) {
+        opacity = 0.1
+        blendDstAlpha = 0.1
+        color = 0x8c9bbd
+      }
+      if (VM.LCD === 1) {
+        opacity = 0.1
+        blendDstAlpha = 0.1
+        color = 0x2b4e66
+        if (VM.viewFlag === 1) {
+          opacity = 0.1
+          blendDstAlpha = 0.1
+          color = 0x2b4e66
+        }
+      }
       oo.traverse(function (child) {
         if (child instanceof THREE.Mesh) {//给模型设置一部分材质，加透明度
           // if (Array.isArray(child.material)){
@@ -1237,11 +1341,11 @@ export default {
 
           child.material = new THREE.MeshPhongMaterial({
             transparent: true,
-            opacity: (VM.viewFlag === 1 ? 0.1 : 0.1),
-            blendDstAlpha: (VM.viewFlag === 1 ? 0.1 : 0.1),
+            opacity: opacity,
+            blendDstAlpha: blendDstAlpha,
             side: THREE.DoubleSide,
-            color: VM.viewFlag === 1 ? 0x8c9bbd : 0x9397bb
-          });
+            color: color
+          })
           // child.material.visible = false
           // child.material.color.setHex(VM.viewFlag === 1 ? 0x8c9bbd :0x9397bb);
         }
@@ -1255,9 +1359,9 @@ export default {
       if (!VM.isTransparent) {
         return
       }
-      let setAttr = function(material){
-        material.opacity= 1;
-        material.side=THREE.DoubleSide;
+      let setAttr = function (material) {
+        material.opacity = 1;
+        material.side = THREE.DoubleSide;
         material.color.setHex(0x9D0000);
       };
       oo.traverse(function (child) {
@@ -1303,10 +1407,10 @@ export default {
     * attr_arr: 需要设置的属性列表
     * val_arr: 需要设置的值列表
     * */
-    setObjMeshAttr(oo,attr_arr,val_arr){
+    setObjMeshAttr(oo, attr_arr, val_arr) {
       var mesh_arr = oo.children;
-      $.each(mesh_arr,(index,mesh)=>{
-        $.each(attr_arr,(key,attr)=>{
+      $.each(mesh_arr, (index, mesh) => {
+        $.each(attr_arr, (key, attr) => {
           mesh[attr] = val_arr[key];
         })
       })
@@ -1485,14 +1589,22 @@ export default {
     * k: 当前位置的下标
     * cur_index: 当前机柜下标在有数据的数组中的下标
     * */
-    cal_heatmap_data_position(length, height, cabinet_num, data, index,k,cur_index) {
+    cal_heatmap_data_position(length, height, cabinet_num, data, index, k, cur_index) {
       var smile_per = 0;//微调
       if (index % 2 === 0) {//背面
         smile_per += 1
       }
       var all_data = {};
       data.temp = Number(data.temp);
-      var position_obj = {x: 0, y: 0,value: data.temp,root:true,baseroot: data.baseroot};//root 代表他是中心点数据 baseroot 表示是最原始的数据，后台返回的
+      var position_obj = {
+        x: 0,
+        y: 0,
+        value: data.temp,
+        root: true,
+        baseroot: data.baseroot,
+        way: data.way,
+        numb: data.numb
+      };//root 代表他是中心点数据 baseroot 表示是最原始的数据，后台返回的
       var splitNum = 5;//y轴被分割的数量，即上下位置
       position_obj.x = Number(Number(length / cabinet_num * (index + smile_per)).toFixed(2));
       position_obj.y = Number(Number(height / splitNum * (data.position - 1 / 2)).toFixed(2));
@@ -1508,21 +1620,23 @@ export default {
       // var dataLimit = Math.ceil(1000 / (this.cubeArry.length / 2) / 5);
       var dataLimit = this.randomNum;//先限制为40个
       // if(data.baseroot || data.temp > (this.temp_default[data.type] || 18)) {//只有是真实数据或者温度超过当前设定的默认值才需要创建随机点
-        for (let i = 0; i < dataLimit; i++) {
-          var val = Math.floor( this.randomCoe * data.temp);
-          max = Math.max(max, val);
-          var point = {
-            x: Math.floor(Math.random() *  limit_width + (limit_width * cur_index)),//x轴要根据当前机柜下标计算X轴位置
-            y: Math.floor( Math.random() * limit_height  + (limit_height * k)),//Y轴要根据当前位置的下标进行计算y轴位置
-            // x:0,
-            // y:0,
-            value: val
-          };
-          pointss.push(point);
-        }
+      for (let i = 0; i < dataLimit; i++) {
+        var val = Math.floor(this.randomCoe * data.temp);
+        max = Math.max(max, val);
+        var point = {
+          x: Math.floor(Math.random() * limit_width + (limit_width * cur_index)),//x轴要根据当前机柜下标计算X轴位置
+          y: Math.floor(Math.random() * limit_height + (limit_height * k)),//Y轴要根据当前位置的下标进行计算y轴位置
+          // x:0,
+          // y:0,
+          value: val,
+          way: data.way,
+          numb: data.numb,
+        };
+        pointss.push(point);
+      }
       // }
       all_data.max = max;
-      all_data.position_arr = [position_obj,...pointss];
+      all_data.position_arr = [position_obj, ...pointss];
       return all_data
     },
 
@@ -1537,25 +1651,33 @@ export default {
     * m: 当前第几面
     * k: 当前循环的下标
     * */
-    cal_heatmap_nine_data_position(length, height, data, arr_length,m,k) {
+    cal_heatmap_nine_data_position(length, height, data, arr_length, m, k) {
       var all_data = {};
       var cal_width = 0;
       data.temp = Number(data.temp);
-      var position_obj = {x: 0, y: 0,value: data.temp,root:true ,baseroot: data.baseroot};//root 代表他是中心点数据 baseroot 表示是最原始的数据，后台返回的
-      var limit_width = this.objSingleLength / 2 ;//固定宽度 120
+      var position_obj = {
+        x: 0,
+        y: 0,
+        value: data.temp,
+        root: true,
+        baseroot: data.baseroot,
+        way: data.way,
+        numb: data.numb
+      };//root 代表他是中心点数据 baseroot 表示是最原始的数据，后台返回的
+      var limit_width = this.objSingleLength / 2;//固定宽度 120
       var limit_height = Number(Number(height / 5).toFixed(2));//分成五分的单个高度
 
       // position_obj.x = Number(Number(length / 2).toFixed(2));
       position_obj.y = Number(Number(height / (arr_length / 2) * (data.position - 1 / 2)).toFixed(2));//(arr_length / 2)是因为分别有冷热通道两组数据
-      if ((m === 6 || m === 11 || m === 13) && data.type === this.key_hot){//这三个原点与机柜冷热通道排列不同
-          position_obj.x = Number(length);
-          cal_width = limit_width; //如果是热通道，那把他们的x轴都往右挪一半的宽度
+      if ((m === 6 || m === 11 || m === 13) && data.type === this.key_hot) {//这三个原点与机柜冷热通道排列不同
+        position_obj.x = Number(length);
+        cal_width = limit_width; //如果是热通道，那把他们的x轴都往右挪一半的宽度
       }
-      if ((m === 5 || m === 7 || m === 12) && data.type === this.key_cold){//这三个的冷通道原始数据也需要挪位置
-          position_obj.x = Number(length);
+      if ((m === 5 || m === 7 || m === 12) && data.type === this.key_cold) {//这三个的冷通道原始数据也需要挪位置
+        position_obj.x = Number(length);
       }
       if ((m === 5 || m === 7 || m === 9 || m === 10 || m === 12) && data.type === this.key_cold) {
-          cal_width = limit_width; //如果是冷通道，那把他们的x轴都往右挪一半的宽度
+        cal_width = limit_width; //如果是冷通道，那把他们的x轴都往右挪一半的宽度
       }
       /*随机数据
       * 每个测点的为一小格，一排机柜为机柜的数量一半个小格，注意要根据机柜的宽度（半柜和全柜）来限制每一小格的高度，
@@ -1566,29 +1688,31 @@ export default {
       * 剩下的页面高度限制高度为机柜高度，直接等分成5份
       * 宽度计算 不同位置计算不同，冷热通道
       * */
-      if(m === 6 || m === 9 || m === 12){
+      if (m === 6 || m === 9 || m === 12) {
         limit_height = this.calc_cabinet_width(this.cubeArry[data.position]);//根据每个机柜的全柜还是半柜来限制每一小格高度
       }
       var pointss = [];
       var max = data.temp;
       var dataLimit = this.randomNum;//如果点很多的话，其他几个面随机点减半
       // if(data.baseroot || data.temp > (this.temp_default[data.type] || 18)) {//只有是真实数据或者温度超过当前设定的默认值才需要创建随机点
-        for (let i = 0; i < dataLimit; i++) {
-          var val = Math.floor( this.randomCoe * data.temp);
-          max = Math.max(max, val);
-          var point = {
-            x: Math.floor(Math.random() * limit_width + cal_width),
-            y: Math.floor(Math.random() * limit_height + (limit_height * (data.position - 1))),
-            // x:0,
-            // y:0,
-            value: val
-          };
-          pointss.push(point);
-        }
+      for (let i = 0; i < dataLimit; i++) {
+        var val = Math.floor(this.randomCoe * data.temp);
+        max = Math.max(max, val);
+        var point = {
+          x: Math.floor(Math.random() * limit_width + cal_width),
+          y: Math.floor(Math.random() * limit_height + (limit_height * (data.position - 1))),
+          // x:0,
+          // y:0,
+          value: val,
+          way: data.way,
+          numb: data.numb,
+        };
+        pointss.push(point);
+      }
       // }
-      var demo_point = {x:0,y:0,value: '900'}
+      var demo_point = {x: 0, y: 0, value: '900'}
       all_data.max = data.temp;
-      all_data.position_arr = [position_obj,...pointss];
+      all_data.position_arr = [position_obj, ...pointss];
       return all_data
     },
     /*
@@ -1619,7 +1743,7 @@ export default {
         new_item.temp = Number(new_item.temp + cold_arr[i].temp) / 2;
         ave_data.push(new_item);
       }
-      ave_data.sort(function (a,b) {
+      ave_data.sort(function (a, b) {
         return a.position - b.position
       });
       return ave_data
@@ -1634,7 +1758,7 @@ export default {
       var one_way_data = [];
       for (var n = 0; n < VM.cubeArry.length; n++) {
         if (n % 2 === even) {
-          one_way_data = [...one_way_data,...VM.cubeArry[n][way]];
+          one_way_data = [...one_way_data, ...VM.cubeArry[n][way]];
         }
       }
       return one_way_data;
@@ -1644,15 +1768,15 @@ export default {
     * data: 位置数据数组
     * type: 当前类型,冷通道或者热通道
     * */
-    set_temp_data_type: function(data,type){
-      return data.map((item,index)=>{
+    set_temp_data_type: function (data, type) {
+      return data.map((item, index) => {
         item.type = type;
         return item
       })
     },
     initObject: function (movL) {
       var VM = this;
-      var cube_maxH = 250, z_y = 120, cube_y, text_y, text_r, new_text_y, new_text_y2,new_text_y3;
+      var cube_maxH = 250, z_y = 120, cube_y, text_y, text_r, new_text_y, new_text_y2, new_text_y3;
       var localPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.8);//切割面
       var array_length = VM.cubeArry.length;
       for (var iNum = 0; iNum < array_length; iNum++) {
@@ -1709,13 +1833,13 @@ export default {
         // if(VM.LCD === 0){
         //处理一下机柜上面的文字信息
         VM.initCabinetName(VM.cubeArry[iNum].name, iNum);
-          var materialText1 = new THREE.MeshBasicMaterial({
-            map: VM.NewNameobj[iNum],//文字贴图
-            // side:THREE.DoubleSide,
-            side: THREE.FrontSide,
-            transparent: true,//是否使用透明度
-            fog: false,
-          });
+        var materialText1 = new THREE.MeshBasicMaterial({
+          map: VM.NewNameobj[iNum],//文字贴图
+          // side:THREE.DoubleSide,
+          side: THREE.FrontSide,
+          transparent: true,//是否使用透明度
+          fog: false,
+        });
         var geometryText1 = new THREE.PlaneGeometry(VM.calc_cabinet_width(VM.cubeArry[iNum]), VM.objCabinetTopHeight);//这里的画布大小与  initCabinetName 中大小设置一致，取画布的中间部分
         VM.mesh1[iNum] = new THREE.Mesh(geometryText1, materialText1);
         VM.mesh1[iNum].name = VM.cabinetName_ + iNum;//根据这个名字计算了点击事件，不然事件无法响应
@@ -1725,7 +1849,7 @@ export default {
         VM.mesh1[iNum].renderOrder = 1000;//显示层级
         VM.mesh1[iNum].material.depthTest = false;
         // if (!VM.isTransparent && VM.viewFlag !== 1) {
-          VM.scene.add(VM.mesh1[iNum]);
+        VM.scene.add(VM.mesh1[iNum]);
         // }
 
         // }
@@ -1733,7 +1857,7 @@ export default {
           //处理一下机柜下面的容量数值 ,与温度值,在温度柱图中显示温度值
           var cur_per = VM.cubeArry[iNum][VM.get_current_capacity_key()];
           var materialText2 = new THREE.MeshBasicMaterial({
-            map: VM.initCabinetPercent(cur_per,VM.calc_cabinet_width(VM.cubeArry[iNum]),0,iNum),//文字贴图
+            map: VM.initCabinetPercent(cur_per, VM.calc_cabinet_width(VM.cubeArry[iNum]), 0, iNum),//文字贴图
             side: THREE.FrontSide,
             transparent: true,//是否使用透明度
             fog: false,
@@ -1742,51 +1866,89 @@ export default {
           VM.mesh2[iNum] = new THREE.Mesh(geometryText2, materialText2);
           VM.mesh2[iNum].name = VM.cabinetCapacity + iNum;//根据这个名字计算了点击事件，不然事件无法响应
           VM.mesh2[iNum].userData = {per: cur_per};//记录一下当前的温度值
-          VM.mesh2[iNum].position.set(VM.cubeArry[iNum].x - movL - 2, VM.objCabinetBottomHeight - 12 , new_text_y2);
+          VM.mesh2[iNum].position.set(VM.cubeArry[iNum].x - movL - 2, VM.objCabinetBottomHeight - 12, new_text_y2);
           VM.mesh2[iNum].rotation.y = text_r;
           VM.scene.add(VM.mesh2[iNum]);
         }
 
         // //处理一下机柜上面的温度数值
-        var setMaterial = function (key,iNum,new_text_y3,text_r) {
-          var materialText3 = new THREE.MeshBasicMaterial({
-            map: VM.initCabinetPercent(VM.cubeArry[iNum][key],VM.calc_cabinet_width(VM.cubeArry[iNum])),//文字贴图
-            side: THREE.FrontSide,
-            transparent: true,//是否使用透明度
-            fog: false,
-          });
-
-          var geometryText3 = new THREE.PlaneGeometry(VM.calc_cabinet_width(VM.cubeArry[iNum]), VM.objHeight - VM.objCabinetBottomHeight / 2);
-          VM.mesh3[iNum + key] = new THREE.Mesh(geometryText3, materialText3);
-          VM.mesh3[iNum + key].position.set(VM.cubeArry[iNum].x - movL - 2, VM.objHeight / 2 + VM.objCabinetBottomHeight / 2, new_text_y3);
-          VM.mesh3[iNum + key].rotation.y = text_r;
-          // if (key === 'temp_cold') {
-            VM.mesh3[iNum + key].renderOrder = 1000;
-            VM.mesh3[iNum + key].material.depthTest = false;
+        var setMaterial = function (key, iNum, new_text_y3, text_r) {
+          var side = THREE.FrontSide
+          // if (key === 'temp_cold'){//冷通道
+          //   side = THREE.BackSide;
           // }
-          VM.scene.add(VM.mesh3[iNum + key]);
-        };
-        if (VM.isTransparent && VM.viewFlag === 6) {
-          setMaterial('temp_hot',iNum,(iNum % 2 === 1) ? new_text_y3 - VM.objSingleLength / 4 : new_text_y3 + VM.objSingleLength / 4,text_r);
-          // setMaterial('temp_cold',iNum,new_text_y3,text_r);
-          setMaterial('temp_cold',iNum,(iNum % 2 === 1) ? new_text_y3 - VM.objSingleWidth - VM.objSingleLength / 4: new_text_y3 + VM.objSingleWidth + VM.objSingleLength / 4,text_r);
+          let cur_per = VM.cubeArry[iNum][key]
+          var materialText3 = new THREE.MeshBasicMaterial({
+            map: VM.initCabinetPercent(cur_per, VM.calc_cabinet_width(VM.cubeArry[iNum])),//文字贴图
+            side: side,
+            transparent: true,//是否使用透明度
+            fog: false
+          })
+
+          // var geometryText3 = new THREE.PlaneGeometry(VM.calc_cabinet_width(VM.cubeArry[iNum]), VM.objHeight - VM.objCabinetBottomHeight / 2);
+          var geometryText3 = new THREE.PlaneGeometry(VM.calc_cabinet_width(VM.cubeArry[iNum]), VM.objCabinetBottomHeight)
+          VM.mesh3[iNum + key] = new THREE.Mesh(geometryText3, materialText3)
+          VM.mesh3[iNum + key].name = VM.capacityTemp + iNum
+          VM.mesh3[iNum + key].userData = {per: cur_per}//记录一下当前的温度值
+          // VM.mesh3[iNum + key].position.set(VM.cubeArry[iNum].x - movL - 2, VM.objHeight / 2 + VM.objCabinetBottomHeight / 2, new_text_y3);
+          VM.mesh3[iNum + key].position.set(VM.cubeArry[iNum].x - movL - 2, VM.objCabinetBottomHeight - 12, new_text_y3)
+          VM.mesh3[iNum + key].rotation.y = text_r
+          // if (key === 'temp_cold') {
+          VM.mesh3[iNum + key].renderOrder = 1000
+          VM.mesh3[iNum + key].material.depthTest = false
+          // }
+          VM.scene.add(VM.mesh3[iNum + key])
         }
-        //文字 数据 暂时废弃
-        /*if(textArray(iNum).texture==null){
-         if(!ifNullData(VM.cubeArry[iNum].z)){
-         initCubeData(VM.cubeArry[iNum].z,iNum);
-         }
-         var data_materialText = new THREE.MeshBasicMaterial({
-         map:VM.Dataobj[iNum],
-         transparent:true,
-         side:THREE.DoubleSide
-         });
-         var data_geometryText = new THREE.PlaneGeometry( 55, 25, 1, 1 );
-         VM.meshData[iNum]  = new THREE.Mesh( data_geometryText,data_materialText );
-         VM.meshData[iNum].position.set(VM.cubeArry[iNum].x-movL,VM.cubeArry[iNum].z/200*cube_maxH,text_y);
-         VM.meshData[iNum].rotation.y=text_r;
-         VM.scene.add( VM.meshData[iNum]);
-         }*/
+        if (VM.isTransparent && VM.viewFlag === 6) {
+          var hot_text_y = new_text_y3 + VM.objSingleLength / 4
+          var cold_text_y = new_text_y3 + VM.objSingleWidth + VM.objSingleLength / 2
+          if (iNum % 2 === 1) {
+            hot_text_y = new_text_y3 - VM.objSingleLength / 4
+            cold_text_y = new_text_y3 - VM.objSingleWidth - VM.objSingleLength / 2
+          }
+          // setMaterial('temp_hot',iNum,new_text_y3,text_r);
+          setMaterial("temp_hot", iNum, new_text_y3, iNum % 2 === 1 ? text_r : Math.PI)
+          // setMaterial('temp_cold',iNum,cold_text_y,text_r);
+          setMaterial("temp_cold", iNum, cold_text_y, iNum % 2 === 1 ? Math.PI : 0)
+        }
+      }
+      if (VM.isTransparent && (VM.viewFlag === 6 || VM.viewFlag === 1) && (!VM.sphereMesh || !VM.latheMesh)) {//温度柱图和温度云图需要加载菜单切换
+        // VM.clearCache(VM.sphereMesh);
+        console.time("initObjecttime")
+        let color = "#72ff90"
+        if (VM.viewFlag === 1) {//因为温度云图下的灯光比较强，所以颜色需要加深一点
+          color = "#42ff68"
+        }
+        const material = new THREE.MeshLambertMaterial({
+          // map:VM.threeD_chose_menu_texture,
+          transparent: true,//是否使用透明度
+          color: color,
+          fog: false,
+          opacity: 1
+        })
+        let sphere = new THREE.Mesh(new THREE.SphereGeometry(30, 15, 15), material)//球体
+        sphere.position.set(0, VM.objHeight + 45, 0)
+        sphere.renderOrder = 1000//渲染级别，有点像z-index
+        sphere.material.depthTest = false//是否深度测试
+        sphere.name = VM.cabinetChoseMenu
+        VM.sphereMesh = sphere
+        var points = []
+        for (var i = 0; i < 10; i++) {
+          points.push(new THREE.Vector2(Math.sin(i * 0.4) * 16 + 10, (i - 5.2) * 8))
+          // points.push(new THREE.Vector2(Math.sin(i * 0.4) * 20 + 8, (i - 10) * 8))
+          // Math.sin(i * 0.4) * 底部圆锥的半径 + 底部尖突出的处理, (i - 5.2) * 底部圆锥的高度)
+        }
+        let geometry1 = new THREE.LatheGeometry(points, 15, 0 ,2 * Math.PI)//车削几何体，点，要分多少段，起始角度，车削部分的弧度
+        var lathe = new THREE.Mesh(geometry1, material)
+        lathe.position.set(0, VM.objHeight + 30, 0)
+        lathe.renderOrder = 1000//渲染级别，有点像z-index
+        lathe.material.depthTest = false//是否深度测试
+        lathe.rotateZ(Math.PI);
+        lathe.name = VM.cabinetChoseMenu
+        VM.latheMesh = lathe
+        VM.scene.add(sphere)
+        VM.scene.add(lathe)
+        console.timeEnd("initObjecttime")
       }
     },
     initCubeData: function (cubeData, i) {//数据 贴图
@@ -1898,60 +2060,75 @@ export default {
       context = null;
     },
     initCabinetName: function (Name, i) {//设备名称 机柜贴图，文字缩放在 initObject 中,文字放大原理，把画布画大一点，接收的部分显示内容
-      var VM = this;
-      var canvas = document.createElement("canvas");
+      var VM = this
+      let shadowColor = "#ffffff"
+      let fillStyle = "#ffffff"
+      // if (VM.viewFlag === 1 && VM.heatmap_type === 1){
+      //   shadowColor = '#666666';
+      //   fillStyle = '#666666';
+      // }else
+      if (VM.LCD === 1 && VM.isTransparent) {
+        shadowColor = "rgba(0,0,0,0.65)"
+        // fillStyle = '#666666';
+      }
+      var canvas = document.createElement("canvas")
       // var dpr = window.devicePixelRatio || 1;
-      var per = VM.cubeArry[i].width === 0 ? 1 : 2;//0是全柜 1是半柜
-      var limit = VM.cubeArry[i].width === 0 ? 5 : 2;//0是全柜 1是半柜
-      var dpr = 3;//这边乘3是将整个画布放大一些，然后取部分内容显示
-      var width = (VM.objSingleWidth / per) * dpr;
+      var per = VM.cubeArry[i].width === 0 ? 1 : 2//0是全柜 1是半柜
+      var limit = VM.cubeArry[i].width === 0 ? 5 : 2//0是全柜 1是半柜
+      var dpr = 3//这边乘3是将整个画布放大一些，然后取部分内容显示
+      var width = (VM.objSingleWidth / per) * dpr
       // var height = 250 * dpr;
-      var height =  VM.objCabinetTopHeight * dpr;
-      canvas.width = width;
-      canvas.height = height;
+      var height = VM.objCabinetTopHeight * dpr
+      canvas.width = width
+      canvas.height = height
       // if (!VM.isTransparent) {
-        var context = canvas.getContext("2d");
-        context.arc(32, 32, 32, 0, 2 * Math.PI);
-        context.fillStyle = "transparent";
-        context.fill();
-        context.shadowBlur = 0.8;//阴影模糊级数
-        context.shadowColor = "#ffffff";
-        context.fillStyle = "#ffffff";//字色 白
-        context.textAlign = "center";
-        // context.font = "60px Microsoft YaHei";//竖排文字大小
-        context.font = "38px Microsoft YaHei";
-        // let x = width / 2, y = 0.256 * height; // 文字开始的坐标
-        let x = width / 2, y = height / 1.5; // 文字开始的坐标
-        let letterSpacing = 3; // 设置字间距
-        //注释循环部分为文字竖排排版
-        // for (let i = 0; i < Name.length; i++) {
-        //   const str = Name.slice(i, i + 1).toString();
-        //   if (str.match(/[A-Z0-9]/)) {//大写和数字
-        //     letterSpacing = 18
-        //   } else if (str.match(/[a-z]/)) {//小写字母
-        //     letterSpacing = 36;
-        //   } else {
-        //     letterSpacing = 3;
-        //   }
-        //   context.save();
-        //   context.textBaseline = 'Middle';
-        //   context.fillText(str, x, y);
-        //   context.scale(dpr, dpr);
-        //   context.restore();
-        //   y += context.measureText(str).width + letterSpacing; // 计算文字宽度
-        // }
-        context.fillText(Name.substr(0,limit),x,y);
-        context.scale(dpr, dpr);
-        // if (dev_index) {
-        //   context.font = "20px Microsoft YaHei";
-          // context.fillText("#" + dev_index, 32, 30);
-          // context.scale(0.5, 0.5);
-        // }
+      var context = canvas.getContext("2d")
+      context.arc(32, 32, 32, 0, 2 * Math.PI)
+      context.fillStyle = "transparent"
+      context.fill()
+      context.shadowBlur = 0.8//阴影模糊级数
+      if (VM.LCD === 1) {
+        context.shadowBlur = 2//阴影模糊级数
+        context.shadowOffsetX = 1//x轴偏移
+        context.shadowOffsetY = 3//y轴偏移
+      }
+      context.shadowColor = shadowColor
+      context.fillStyle = fillStyle//字色 白
+      context.textAlign = "center"
+      // context.font = "60px Microsoft YaHei";//竖排文字大小
+      context.font = "38px Microsoft YaHei"
+      // let x = width / 2, y = 0.256 * height; // 文字开始的坐标
+      let x = width / 2, y = height / 1.5 // 文字开始的坐标
+      let letterSpacing = 3 // 设置字间距
+      //注释循环部分为文字竖排排版
+      // for (let i = 0; i < Name.length; i++) {
+      //   const str = Name.slice(i, i + 1).toString();
+      //   if (str.match(/[A-Z0-9]/)) {//大写和数字
+      //     letterSpacing = 18
+      //   } else if (str.match(/[a-z]/)) {//小写字母
+      //     letterSpacing = 36;
+      //   } else {
+      //     letterSpacing = 3;
+      //   }
+      //   context.save();
+      //   context.textBaseline = 'Middle';
+      //   context.fillText(str, x, y);
+      //   context.scale(dpr, dpr);
+      //   context.restore();
+      //   y += context.measureText(str).width + letterSpacing; // 计算文字宽度
       // }
-      VM.NewNameobj[i] = new THREE.CanvasTexture(canvas);
+      context.fillText(Name.substr(0, limit), x, y)
+      context.scale(dpr, dpr)
+      // if (dev_index) {
+      //   context.font = "20px Microsoft YaHei";
+      // context.fillText("#" + dev_index, 32, 30);
+      // context.scale(0.5, 0.5);
+      // }
+      // }
+      VM.NewNameobj[i] = new THREE.CanvasTexture(canvas)
       if (document.getElementById("CanvasHide")) {
-        document.getElementById("CanvasHide").appendChild(canvas);/*放入垃圾桶*/
-        document.getElementById("CanvasHide").innerHTML = '';//将a从页面上删除 /*清除垃圾桶*/
+        document.getElementById("CanvasHide").appendChild(canvas)/*放入垃圾桶*/
+        document.getElementById("CanvasHide").innerHTML = ""//将a从页面上删除 /*清除垃圾桶*/
       }
       canvas = null;
       context = null;
@@ -1959,58 +2136,72 @@ export default {
     /*
     * 容量云图的使用百分比
     * */
-    initCabinetPercent: function (per, w, h,index) {
-      var canvas = document.createElement("canvas");
-      var dpr = 3;
-      var fontSize = '45px ';
-      var width = (w || this.objSingleWidth) * dpr;
-      var height = (h || this.objHeight) * dpr;
-      var fillText = per;
-      let x = width / 2;
-      let y = height; // 文字开始的坐标
+    initCabinetPercent: function (per, w, h, index) {
+      let shadowColor = "#ffffff"
+      let fillStyle = "#ffffff"
+      if (this.LCD === 1 && !this.is_qt && this.isTransparent) {
+        // if (this.LCD === 1 && this.isTransparent){
+        shadowColor = "#464c5b"
+        fillStyle = "#464c5b"
+      }
+      var canvas = document.createElement("canvas")
+      var dpr = 3
+      var fontSize = "45px "
+      var width = (w || this.objSingleWidth) * dpr
+      var height = (h || this.objHeight) * dpr
+      var fillText = per
+      let x = width / 2
+      let y = height // 文字开始的坐标
+      fillStyle = this.deal_capacity_color(null, per, fillStyle)
       if (this.viewFlag !== 2) {
-        fillText += '℃';
-        height = Math.floor(((h || this.objHeight) - this.objCabinetBottomHeight / 2) * dpr);
-        // y = height - (this.check_value(per) * this.objCabinetHeight / 100 + 16) * dpr; //显示在上面
-        var height_1 = this.check_value(per) * this.objCabinetHeight / 100;//需要减去的高度
+        // fillText += '℃';
+        // height = Math.floor(((h || this.objHeight) - this.objCabinetBottomHeight / 2) * dpr);
+        // y = height - (this.check_value(per) * this.objCabinetHeight / 100 + 16) * dpr; //显示在上面 目前未用
+        var height_1 = this.check_value(per) * this.objCabinetHeight / 100//需要减去的高度
         if (per < 16) {
           height_1 = 0
         }
-        y = height - Math.abs((height_1 + 16) * dpr);// 显示在柱子最上面
-      }else{
-        var limit = this.cubeArry[index].width === 0 ? 6 : 3;//0是全柜 1是半柜
+        // y = height - Math.abs((height_1 + 16) * dpr);// 显示在柱子最上面]
+        height = this.objCabinetBottomHeight * dpr
+        y = this.objCabinetBottomHeight + 26//放在最下面
+        // if (per >= 90) {
+        //   fillStyle = '#ff0000';
+        // }
+      } else {
+        var limit = this.cubeArry[index].width === 0 ? 6 : 3//0是全柜 1是半柜
         // height = VM.objBottomHeight * dpr;
-        if (!fillText){
-          fillText = '';
-        }else{
-          fillText += '%';
-          fillText = fillText.toString().substr(0,limit);
+        if (!fillText) {
+          fillText = ""
+        } else {
+          // fillText += '%';
+          fillText = fillText.toString()
+            .substr(0, limit)
         }
-        height = this.objCabinetBottomHeight * dpr;
-        y = this.objCabinetBottomHeight + 26;
-        fontSize = '38px '
+        height = this.objCabinetBottomHeight * dpr
+        y = this.objCabinetBottomHeight + 26
+        fontSize = "38px "
       }
-      canvas.width = width;
-      canvas.height = height;
-      var context = canvas.getContext("2d");
-      context.arc(32, 32, 32, 0, 2 * Math.PI);
-      context.fillStyle = "transparent";
-      context.fill();
-      context.shadowBlur = 0.8;//阴影模糊级数
-      context.shadowColor = "#ffffff";
-      context.fillStyle = "#ffffff";//字色 白
-      context.textAlign = "center";
-      context.font =  fontSize + "Microsoft YaHei";
-      context.textBaseline = 'Middle';
-      if (per) {
-        context.fillText(fillText, x, y);
+      canvas.width = width
+      canvas.height = height
+      var context = canvas.getContext("2d")
+      context.arc(32, 32, 32, 0, 2 * Math.PI)
+      context.fillStyle = "transparent"
+      context.fill()
+      context.shadowBlur = 0.8//阴影模糊级数
+      context.shadowColor = shadowColor
+      context.fillStyle = fillStyle//字色 白
+      context.textAlign = "center"
+      context.font = fontSize + "Microsoft YaHei"
+      context.textBaseline = "Middle"
+      if (per && per != 0) {//这里用一个等于，因为后台返回可能存在0.0
+        context.fillText(fillText, x, y)
       }
       //这里做超时回收是因为 new Image()的onload 是一个异步的加载过程，如果直接回收，会导致前面异步记载回来之后context的内容为空，drawImage报错，图片就画不出来了
       setTimeout(function () {
         //回收
         if (document.getElementById("CanvasHide")) {
-          document.getElementById("CanvasHide").appendChild(canvas);/*放入垃圾桶*/
-          document.getElementById("CanvasHide").innerHTML = '';//将a从页面上删除 /*清除垃圾桶*/
+          document.getElementById("CanvasHide").appendChild(canvas)/*放入垃圾桶*/
+          document.getElementById("CanvasHide").innerHTML = ""//将a从页面上删除 /*清除垃圾桶*/
         }
         canvas = null;
         context = null;
@@ -2143,8 +2334,8 @@ export default {
           // VM.cube[i].material.opacity = 0.1;
           // VM.cube[i].material.visible = false;
           VM.cube[i].visible = false;
-          VM.deal_capacity_temp_column(i,'temp_hot');
-          VM.deal_capacity_temp_column(i,'temp_cold');
+          VM.deal_capacity_temp_column(i, 'temp_hot');
+          VM.deal_capacity_temp_column(i, 'temp_cold');
         } else {
           // VM.textArray(i).mycolor 0x9397bb
           VM.cube[i].material.color.setHex(VM.isTransparent ? 0x9397bb : VM.textArray(i).mycolor);//柱状体 材质 白
@@ -2154,7 +2345,7 @@ export default {
           }
           // if (!VM.isTransparent) {
           // if (VM.viewFlag !== 1)
-            VM.cube[i].material.map = VM.textArray(i).texture || VM.texture0;//机柜上面的门贴图
+          VM.cube[i].material.map = VM.textArray(i).texture || VM.texture0;//机柜上面的门贴图
           // }
         }
         if (VM.meshData[i] != null) {//去除数值
@@ -2164,19 +2355,19 @@ export default {
           VM.mesh1[i].material.map.dispose();
           VM.initCabinetName(VM.cubeArry[i].name, i);//设备名设备名
           VM.mesh1[i].material.map = VM.NewNameobj[i];
-          if (!VM.isTransparent && VM.viewFlag !== 1){
+          if (!VM.isTransparent && VM.viewFlag !== 1) {
             VM.mesh[i].material.transparent = true;//材料透明
             VM.mesh[i].material.needsUpdate = true;//使纹理可以更新
             VM.mesh[i].geometry.colorsNeedUpdate = true;//使颜色可以更新
             VM.mesh[i].material.map.dispose();
             VM.cube[i].is_alarm = VM.cubeArry[i].is_alarm;//更新告警状态，不然新的告警来的时候无法执行点击事件
             VM.mesh[i].is_alarm = VM.cubeArry[i].is_alarm;//更新告警状态，不然新的告警来的时候无法执行点击事件
-            if (VM.cubeArry[i].is_alarm === 1){
+            if (VM.cubeArry[i].is_alarm === 1) {
               VM.mesh[i].material.visible = true;
               VM.initTextName(VM.cubeArry[i].name, VM.cubeArry[i].is_alarm, i, 0, VM.cubeArry[i].alarm);//设备名设备名，感叹号
               VM.mesh[i].material.map = VM.Nameobj[i];
               VM.scene.add(VM.mesh[i]);//这里要加上，不然新告警来的时候不会显示上面的图表
-            }else{
+            } else {
               VM.mesh[i].material.visible = false;
               VM.scene.remove(VM.mesh[i]);
             }
@@ -2185,17 +2376,15 @@ export default {
           if (VM.viewFlag === 2) {//容量
             // VM.cube[i].material.color.set(this.deal_capacity_color(i));//柱状体 材质 红  e60000 ff3000
             VM.deal_capacity_type(i);
-          }else if (VM.viewFlag === 6){//温度柱图
-            VM.deal_capacity_temp_column(i,'temp_hot');
-            VM.deal_capacity_temp_column(i,'temp_cold');
+          } else if (VM.viewFlag === 6) {//温度柱图
+            VM.deal_capacity_temp_column(i, 'temp_hot');
+            VM.deal_capacity_temp_column(i, 'temp_cold');
           }
         }
       }
       VM.MyisRender = false;//这边添加置否是因为容量三个试图切换
       if (VM.Loadover <= 0) {
-        VM.initCameraDev();
-        VM.init_heatmap_four_mesh();
-        VM.init_three_heat_map();
+        VM.loadOtherView();
         VM.stop_animation();
       }
     },
@@ -2228,31 +2417,19 @@ export default {
        VM.normal_animation();
        }else{//设备有异常*/
       VM.abnormal_animation();
-      if (VM.smokeParticles.length > 0) {
-        // VM.evolveSmoke();
-      }
       /* }*/
-      VM.Timeinterval_3d = setTimeout(function () {
-        if (VM.animationFlag == 0) {
-          VM.animation('Timeinterval_3d');//动画
-        }
-      }, 3000);
-      if (VM.LCD == 1) {//液晶屏上展示pc端代码--大屏展示:放大2倍，缩小0.5倍
-        $("#main_model canvas").css({
-          'transform-origin': 'left top',
-          'transform': 'scale(0.5,0.5)',
-          '-moz-transform': 'scale(0.5,0.5)',
-          '-webkit-transform': 'scale(0.5,0.5)',
-          '-ms-transform': 'scale(0.5,0.5)',
-          '-o-transform': 'scale(0.5,0.5)'
-        });
-      }
+      // VM.Timeinterval_3d = setTimeout(function () {
+      //   if (VM.animationFlag === 0) {
+      //     VM.animation('Timeinterval_3d');//动画
+      //   }
+      // }, 3000);
+      VM.LCDScale();
       VM.render_render('animation');
     },
-    myAnimation(time){
+    myAnimation(time) {
       time *= 0.0005;
       var VM = this;
-      if (VM.CAMERA && VM.renderer){
+      if (VM.CAMERA && VM.renderer) {
         VM.CAMERA.updateProjectionMatrix();
         VM.scene.rotation.y = time;
         VM.renderer.render(VM.scene, VM.CAMERA);
@@ -2264,22 +2441,28 @@ export default {
       if (!VM.renderer) {
         return;
       }
-      VM.MyisRender = true;//这个添加一下清楚的控制
-      VM.renderer.clear();//清除场景
-      VM.clearMesh(VM.scene);
-      VM.clearMesh(VM.objGroup);
-      VM.clearMesh(VM.cubeArry);
-      VM.clearMesh(VM.meshData);
-      VM.clearMesh(VM.mesh);
-      VM.clearMesh(VM.mesh1);
-      VM.clearMesh(VM.mesh2);
-      VM.clearMesh(VM.capacityMesh);
-      VM.clearMesh(VM.heatmap_Mesh);
-      if (VM.CONTROLS){
-        VM.CONTROLS.dispose();
+      VM.MyisRender = true//这个添加一下清楚的控制
+      VM.renderer.clear()//清除场景
+      VM.clearMesh(VM.objGroup)
+      VM.clearMesh(VM.cubeArry)
+      VM.clearMesh(VM.meshData)
+      VM.clearMesh(VM.mesh)
+      VM.clearMesh(VM.mesh1)
+      VM.clearMesh(VM.mesh2)
+      VM.clearMesh(VM.mesh3)
+      VM.clearMesh(VM.mesh4)
+      // VM.clearMesh(VM.mesh5);
+      VM.clearMesh(VM.sphereMesh)
+      VM.clearMesh(VM.coneMesh)
+      VM.clearMesh(VM.latheMesh)
+      VM.clearMesh(VM.capacityMesh)
+      VM.clearMesh(VM.heatmap_Mesh)
+      VM.clearMesh(VM.scene)
+      if (VM.CONTROLS) {
+        VM.CONTROLS.dispose()
       }
-      VM.scene = null;
-      VM.renderer.context = null;
+      VM.scene = null
+      VM.renderer.context = null
       //document.getElementById('main_model') && document.getElementById('main_model').removeChild(VM.renderer.domElement);
       $("#main_model").find('.my_heatmap').remove();//这里有清除一下渲染的canvas画布和云图内容
       VM.renderer.domElement = null;
@@ -2288,44 +2471,49 @@ export default {
       clearTimeout(VM.Timeinterval_3d);
       VM.Timeinterval_3d = null;
       VM.spotLight_list.forEach((light, index) => {
-        VM['spotLight' + index] = null
-      });
-      VM.spotLight = null;
-      VM.shapeMess = null;
-      VM.shapeMessFlag = 0;
-      VM.meshData = [];
-      VM.mesh = [];
-      VM.mesh1 = [];
-      VM.mesh2 = [];
-      VM.mesh3 = {};
-      VM.capacityMesh = [];
-      VM.heatmap_Mesh = [];
-      VM.heatmap_map = [];
-      VM.heatmap_Mesh_three = [];
-      VM.heatmap_map_three = [];
-      VM.camera_dev_group = {};
-      VM.all_passageway_data = {};
-      VM.old_temp_camera_Obj = {};
-      VM.temp_camera_list = [];
-      VM.old_temp_camera_list = [];
-      VM.cube = [];
-      VM.cubeArry = [];
-      VM.cubeArry_old = [];
-      VM.vH = [];
-      VM.Dataobj = [];
-      VM.Nameobj = [];
-      VM.NewNameobj = [];
-      VM.Allmax_flag = [];
-      VM.Allmax_over = [];
-      VM.objGroup = null;
-      VM.Loadover = 3;
-      THREE.Cache.clear();
+        VM["spotLight" + index] = null
+      })
+      VM.spotLight = null
+      VM.shapeMess = null
+      VM.shapeMessFlag = 0
+      VM.meshData = []
+      VM.mesh = []
+      VM.mesh1 = []
+      VM.mesh2 = []
+      VM.mesh3 = {}
+      VM.mesh4 = {}
+      // VM.mesh5 = {};
+      VM.sphereMesh = null
+      VM.coneMesh = null
+      VM.latheMesh = null
+      VM.capacityMesh = []
+      VM.heatmap_Mesh = []
+      VM.heatmap_map = []
+      VM.heatmap_Mesh_three = []
+      VM.heatmap_map_three = []
+      VM.camera_dev_group = {}
+      VM.all_passageway_data = {}
+      VM.old_temp_camera_Obj = {}
+      VM.temp_camera_list = []
+      VM.old_temp_camera_list = []
+      VM.cube = []
+      VM.cubeArry = []
+      VM.cubeArry_old = []
+      VM.vH = []
+      VM.Dataobj = []
+      VM.Nameobj = []
+      VM.NewNameobj = []
+      VM.Allmax_flag = []
+      VM.Allmax_over = []
+      VM.objGroup = null
+      VM.Loadover = 3
+      THREE.Cache.clear()
     },
     render_setSize1: function () {
       var VM = this;
       var ww = $("#main_model").width();
       var dd = $("#main_model").height();
-      if (VM.LCD == 1) {//液晶屏上展示pc端代码--大屏展示:放大2倍，缩小0.5倍
+      if (VM.LCD === 1) {//液晶屏上展示pc端代码--大屏展示:放大2倍，缩小0.5倍
         VM.canvasScal = 2;
       }
       VM.Dwidth = VM.canvasScal * ww;
@@ -2343,6 +2531,7 @@ export default {
         VM.renderer.setSize(VM.Dwidth, VM.Dheight);
         VM.render_render('render_setSize1');
       }
+      VM.isLoading = false;//进度gif
     },
     obj_action: function () {
       var VM = this;
@@ -2351,12 +2540,6 @@ export default {
       });
       $("#circeLeft").unbind("mousedown").bind("mousedown", function () {
         VM.circle_action(1, VM.tag_left);
-      });
-      $("#circeTop").unbind("mousedown").bind("mousedown", function () {
-        VM.circle_action(-1, VM.tag_top);
-      });
-      $("#circeBottom").unbind("mousedown").bind("mousedown", function () {
-        VM.circle_action(1, VM.tag_top);
       });
       $("#circeReset").unbind("mousedown").bind("mousedown", function () {
         // VM.render_setSize();
@@ -2373,17 +2556,18 @@ export default {
       // if (VM.LCD === 0){
       //   return
       // }
-      if (!VM.isWebGl) {
+      if (!VM.isWebGl || VM.isRoateing) {
         return
       }
-      VM.spotLight_list.forEach((light, index) => {
-        var spotLight = VM['spotLight' + index];
-        if (spotLight) {
-          /*灯光一起旋转导致重置的时候灯光映射的地方会出现问题*/
-          // VM.myCameraTween(spotLight,Math.PI*flag/16,1,0,tag,0);
-        }
-      });
-      VM.myCameraTween(VM.CAMERA, Math.PI * flag / 16, 1, 0, tag, 1);
+      VM.isRoateing = true;
+      // VM.spotLight_list.forEach((light, index) => {
+      //   var spotLight = VM['spotLight' + index];
+      //   if (spotLight) {
+      //     /*灯光一起旋转导致重置的时候灯光映射的地方会出现问题*/
+      //     // VM.myCameraTween(spotLight,Math.PI*flag/16,1,0,tag,0);
+      //   }
+      // });
+      VM.myCameraTween(VM.CAMERA, Math.PI * flag / 8, 1, 0, tag, 1);
       VM.anaglePI = VM.anaglePI + flag;
       if (VM.anaglePI == 32 * flag) {
         VM.anaglePI = 0;
@@ -2392,7 +2576,7 @@ export default {
     onDocumentMove_clear: function () {//清除上一个机柜名提示
       var VM = this;
       // if (!VM.nowItme.is3d){
-        VM.devShow = false;
+      VM.devShow = false;
       // }
       //if(VM.old_Move!=null && !ifNullData(VM.cube[VM.old_Move])){
       //  VM.cube[VM.old_Move].position.z=0;
@@ -2407,7 +2591,7 @@ export default {
       var VM = this;
       var Mouse = {};
       var INTERSECTED;//三维射线
-      if(!VM.scene){
+      if (!VM.scene) {
         return
       }
       var raycaster = new THREE.Raycaster();
@@ -2418,43 +2602,65 @@ export default {
       var intersects = raycaster.intersectObjects(VM.scene.children, true);
       //VM.shapeMessFlag=1;
       if (intersects.length > 0) {//产生碰撞
-        INTERSECTED = intersects[0].object;//获取碰撞对象
+        INTERSECTED = intersects[0].object//获取碰撞对象
+        let the_one
+        // if (VM.viewFlag === 6) {//温度柱图需要显示冷通道,会很卡
+        //   the_one = intersects.find((item, index) => {
+        //     return item.object.name.indexOf(VM.capacityTemp) >= 0
+        //   });
+        //   INTERSECTED = the_one ? the_one.object : null
+        // }
+        if (!INTERSECTED) {
+          return
+        }
         if (INTERSECTED.name.indexOf(VM.cabinetName_) >= 0) {//判断碰撞对象是否机柜
           var i = Number(INTERSECTED.name.split("_")[1]);
           if (i != VM.old_Move) {//判断碰撞对象是否是上一次存储碰撞对象---避免重复渲染统
+            var x = VM.LCD === 1 ? event.offsetX / 2 : event.offsetX
+            var y = VM.LCD === 1 ? event.offsetY / 2 : event.offsetY
             VM.nowItme = {
               name: VM.cubeArry[i].name,
-              x: event.offsetX,
-              y: event.offsetY + 100
-            };
-            if ((VM.cubeArry[i].name && VM.cubeArry[i].name != "")){
-              VM.devShow = true;
-            }else{
+              x: x,
+              y: y + 100
+            }
+            if ((VM.cubeArry[i].name && VM.cubeArry[i].name != "")) {
+              VM.devShow = true
+            } else {
               VM.devShow = false
             }
           } else {
 
             //VM.shapeMessFlag=0;//不进行渲染
           }
-        } else if (INTERSECTED.name.indexOf(VM.cabinetCapacity) >= 0) {//判断碰撞对象是否是底部的温度
-          var i = Number(INTERSECTED.name.split("_")[1]);
-          var cur_per = INTERSECTED.userData.per;
+        } else if (INTERSECTED.name.indexOf(VM.cabinetCapacity) >= 0) {//判断碰撞对象是否是容量管理底部的数值
+          var i = Number(INTERSECTED.name.split("_")[1])
+          var cur_per = INTERSECTED.userData.per
           if (i != VM.old_Move) {//判断碰撞对象是否是上一次存储碰撞对象---避免重复渲染统
             VM.nowItme = {
-              name: cur_per + '%',
+              name: cur_per + "%",
               x: event.offsetX,
               y: event.offsetY + 100
-            };
-            if (cur_per){
-              VM.devShow = true;
-            }else{
-              VM.devShow = false
             }
+            VM.devShow = !!cur_per
           } else {
 
             //VM.shapeMessFlag=0;//不进行渲染
           }
-        }else {
+        } else if (INTERSECTED.name.indexOf(VM.capacityTemp) >= 0) {//判断碰撞对象是否是温度柱图底部的温度
+          var i = Number(INTERSECTED.name.split("_")[1])
+          var cur_per = INTERSECTED.userData.per
+          if (i != VM.old_Move) {//判断碰撞对象是否是上一次存储碰撞对象---避免重复渲染统
+            VM.nowItme = {
+              name: cur_per + "℃",
+              x: event.offsetX,
+              y: event.offsetY + 100
+            }
+            VM.devShow = !!cur_per
+          } else {
+
+            //VM.shapeMessFlag=0;//不进行渲染
+          }
+        } else {
           VM.onDocumentMove_clear();//清除上一个机柜名提示
         }
       } else {
@@ -2477,95 +2683,99 @@ export default {
       // if (VM.LCD === 1){
       //   return
       // }
-      VM.mouseClickStartTime = VM.getTimeNow();
+      VM.mouseClickStartTime = VM.getTimeNow()
 
       //setInterval会每100毫秒执行一次，也就是每100毫秒获取一次时间
-      VM.mouseClickTimeInterval = setInterval(function () {
-        VM.mouseClickEndTime = VM.getTimeNow();
-
-        //如果此时检测到的时间与第一次获取的时间差有500毫秒
-        VM.mouseClickDuringTime = VM.mouseClickEndTime - VM.mouseClickStartTime;//持续时间
-        if (VM.mouseClickDuringTime > 500) {
-          //便不再继续重复此函数 （clearInterval取消周期性执行）
-          clearInterval(VM.mouseClickTimeInterval);
-        }
-        if (VM.mouseClickDuringTime > 200) {
-          if (VM.requestAnimationFrameID) {//在这里取消自动动画
-            cancelAnimationFrame(VM.requestAnimationFrameID);
-          }
-        }
-      }, 100);
+      // VM.mouseClickTimeInterval = setInterval(function () {
+      //   VM.mouseClickEndTime = VM.getTimeNow()
+      //
+      //   //如果此时检测到的时间与第一次获取的时间差有500毫秒
+      //   VM.mouseClickDuringTime = VM.mouseClickEndTime - VM.mouseClickStartTime//持续时间
+      //   if (VM.mouseClickDuringTime > 500) {
+      //     //便不再继续重复此函数 （clearInterval取消周期性执行）
+      //     clearInterval(VM.mouseClickTimeInterval);
+      //     VM.mouseClickTimeInterval = null
+      //   }
+      //   if (VM.mouseClickDuringTime > 200) {
+      //     if (VM.requestAnimationFrameID) {//在这里取消自动动画
+      //       cancelAnimationFrame(VM.requestAnimationFrameID)
+      //     }
+      //   }
+      // }, 100)
     },
     onDocumentMouseup: function (event) {
-      var VM = this;
+      var VM = this
       // if (VM.LCD === 1){
       //   return
       // }
-      clearInterval(VM.mouseClickTimeInterval);
-      if (VM.mouseClickDuringTime < 500) {
+      VM.mouseClickEndTime = VM.getTimeNow();
+      VM.mouseClickDuringTime = VM.mouseClickEndTime - VM.mouseClickStartTime//持续时间
+      // clearInterval(VM.mouseClickTimeInterval);
+      if (VM.mouseClickDuringTime <= 500 && !VM.isControlsChange) {
         VM.onDocumentMouseDownFun(event)
       }
     },
     onDocumentMouseDownFun: function (event) {
-      var VM = this;
-      var Mouse = new THREE.Vector2();
-      var INTERSECTED;//三维射线
-      var the_one;//三维射线对应的对象
+      var VM = this
+      VM.devShow = false;
+      var Mouse = new THREE.Vector2()
+      var INTERSECTED//三维射线
+      var the_one//三维射线对应的对象
       event.preventDefault();
-      Mouse.x = (event.offsetX / VM.Dwidth) * 2 - 1;
-      Mouse.y = -(event.offsetY / VM.Dheight) * 2 + 1;
+      let offsetTop = $('#main_model').offset().top;
+      let offsetX = event.offsetX || VM.getScreenClickPoint(event, 'pageX') - 8;
+      let offsetY = event.offsetY || VM.getScreenClickPoint(event, 'pageY') - offsetTop;// 减去顶部的高度
+      if (VM.LCD === 1) {
+        // LCD有对3D内容进行放大位置，所以对点击的位置要相应的放大，1.84来源于多次测试
+        offsetX = VM.getScreenClickPoint(event, 'pageX') * 1.84 - 60; // 位置偏移
+        offsetY = VM.getScreenClickPoint(event, 'pageY') * 1.84 - offsetTop - 60; // 减去顶部的高度
+      }
+
+      Mouse.x = (offsetX / VM.Dwidth) * 2 - 1;
+      Mouse.y = -(offsetY / VM.Dheight) * 2 + 1;
       var raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(Mouse, VM.CAMERA); //新建一条从相机的位置到vector向量的一道光线
       var intersects = raycaster.intersectObjects(VM.scene.children, true);
 
       if (intersects.length > 0) {
-        INTERSECTED = intersects[0].object;//把选中的对象放到全局变量SELECTED中
-        the_one = intersects[0];
-        if (VM.viewFlag === 3) {//安防视图中做事件穿透屏蔽其他选中对象，只选择温感与摄像头对象
-          the_one = intersects.find((item,index)=>{
-            return item.object.name.indexOf(VM.cameraDev_) >= 0
-          });
-          INTERSECTED = the_one ? the_one.object : null
-        }else if (VM.viewFlag === 1) {//温度云图中处理一下，有可能点击到其他的位置
-          if (INTERSECTED.name.indexOf(VM.cabinetTemp_) < 0) {
-            the_one = intersects.find((item,index)=>{//找到所点击的温度云图第一个
-              return item.object.name.indexOf(VM.cabinetTemp_) >= 0
-            });
-            INTERSECTED =  the_one ? the_one.object : null
-          }
+        INTERSECTED = intersects[0].object//把选中的对象放到全局变量SELECTED中
+        the_one = intersects[0]
+        if ((VM.viewFlag === 1 || VM.viewFlag === 6) && INTERSECTED.name.indexOf(VM.cabinetChoseMenu) >= 0) {//点击的是3D菜单
+
+        } else {
+          let theOneObj = VM.findClickTheOne(the_one, intersects, INTERSECTED)
+          the_one = theOneObj.theOne
+          INTERSECTED = theOneObj.INTERSECTED
         }
         if (!INTERSECTED) {
-          // if (!INTERSECTED || !INTERSECTED.material.color) {
           return
         }
-        // INTERSECTED.currentHex = INTERSECTED.material.color.getHex();
-        var NewArray;
+        var NewArray
         if (ifNullData(VM.cubeArry)) {
-          NewArray = VM.cubeArry_old;
+          NewArray = VM.cubeArry_old
         } else {
-          NewArray = VM.cubeArry;
+          NewArray = VM.cubeArry
         }
-        clearInterval(VM.mainD_cabinet_timer);
+        clearInterval(VM.mainD_cabinet_timer)
         if (INTERSECTED.name.indexOf(VM.cabinet_) >= 0) {
-          var i = Number(INTERSECTED.name.split("_")[1]);
-          VM.box_index = (i + 1);
-          VM.cab_type = NewArray[i].type;
-          VM.dev_index = NewArray[i].index;
-          // if(INTERSECTED.currentHex==0xe7251b) {//红色告警
+          var i = Number(INTERSECTED.name.split("_")[1])
+          VM.box_index = (i + 1)
+          VM.cab_type = NewArray[i].type
+          VM.dev_index = NewArray[i].index
           if (INTERSECTED.is_alarm) {//自定义告警属性
-            loadingPage(true);
-            VM.showFlag = true;//机柜告警弹窗
+            loadingPage(true)
+            VM.showFlag = true//机柜告警弹窗
           } else {
             if (NewArray[i].type == 106 && !VM.isTransparent) {//机柜
-              loadingPage(true);
-              popWin('main_cabinet_message');
-              VM.mainD_cabinet_Message();
+              loadingPage(true)
+              popWin("main_cabinet_message")
+              VM.mainD_cabinet_Message()
               VM.mainD_cabinet_timer = setInterval(function () {
-                VM.mainD_cabinet_Message();
-              }, 5000);
+                VM.mainD_cabinet_Message()
+              }, 5000)
             }
           }
-        }else if (INTERSECTED.name.indexOf(VM.cabinetName_) >= 0) {//判断点击是不是名字
+        } else if (INTERSECTED.name.indexOf(VM.cabinetName_) >= 0) {//判断点击是不是名字
           // var i = Number(INTERSECTED.name.split("_")[1]);
           // VM.nowItme = {
           //   name: VM.cubeArry[i].name,
@@ -2573,208 +2783,151 @@ export default {
           //   y: event.offsetY + 100
           // };
           // VM.devShow = !!(VM.cubeArry[i].name && VM.cubeArry[i].name != "");
-        }else if (INTERSECTED.name.indexOf(VM.cameraDev_) >= 0) {//判断是不是点击了安防设备
-          VM.pop_camera_dev = INTERSECTED.userData || {};
-          if (!ifNullData(VM.pop_camera_dev) && VM.is_camera(VM.pop_camera_dev.dev_type) && VM.pop_camera_dev.is_alarm === 0){//摄像头直接弹出
-            VM.camera_dev_message_message();
-          }else{
-            popWin('camera_dev_message');
+        } else if (INTERSECTED.name.indexOf(VM.cameraDev_) >= 0) {//判断是不是点击了安防设备
+          VM.pop_camera_dev = INTERSECTED.userData || {}
+          if (!ifNullData(VM.pop_camera_dev)
+            && VM.is_camera(VM.pop_camera_dev.dev_type)
+            && VM.pop_camera_dev.is_alarm === 0
+            && !VM.is_qt) {//摄像头直接弹出
+            VM.camera_dev_message_message()
+          } else {
+            popWin("camera_dev_message")
           }
-        }else if (INTERSECTED.name.indexOf(VM.cabinetTemp_) >= 0) {//判断是不是点击了温度云图
-          if (the_one){
-            VM.main_ico_3d.stop();
-            VM.devShow = false;
-            VM.nowItme = {};
+        } else if (INTERSECTED.name.indexOf(VM.cabinetTemp_) >= 0) {//判断是不是点击了温度云图
+          if (the_one) {
+            VM.main_ico_3d.stop()
+            VM.devShow = false
+            VM.nowItme = {}
+
+            var page = Number(INTERSECTED.name.split(VM.cabinetTemp_)[1]);//当前点击的哪一面
+
+            // console.log(page);
+            var width = VM.objLength + (VM.cubeArry[VM.cubeArry.length - 1].width === 0 ? VM.objSingleWidth : 49) // 这里加的宽度要根据最后一个排机柜的宽度加
+            var height = VM.objHeight + VM.objSmallHeight
+            if (VM.heatmap_type === -1) {
+              height = VM.objAllCabinetWidth
+            }
+            // console.log(the_one.point);
             /*
-            * 通过所点击的位置在世界坐标系中的位置，找到所点击的面 两个轴线确定一个面，所有数值计算都可以有2之内的相差
-            * x：正数：7（z轴 正数） 、10（z轴 正负 120/2 之间）、13（z轴 负数）  负数：5（z轴 正数）、8（z轴正负 120/2 之间）、11（z轴 负数）
-            * y：正数：6（z轴 正数）、9（z轴正负 120/2 之间）、12（z轴 负数） 负数：无
-            * z：正数：1（z轴 正数，且为 360 / 2）、2 （z轴 正数，且为 360 / 6）负数：3（z轴 负数，且为 360 / 6）、4 （z轴 负数，且为 360 / 2）
-            * 上中下三个面的位置计算,根据Y轴计算就好了
-            * 上：y轴为整个机柜的高度 VM.objHeight 290
-            * 中：y轴为整个机柜的高度一半 VM.objHeight 290 / 2
-            * 下：y轴高度为0
+            * 向量装换为2D，获取当前点击的点坐标系，整个机柜模型的世界坐标轴的原点在机柜的底部中心
+            * 前4面：原点在左上角，在面上的x轴 = 点击的x轴 + 机柜整个长度的一半，y轴 = 整个机柜的高度 - 点击的y轴
+            * 第5个面、第7个面：原点在右上角，此时点击的z轴大于0，面上的x轴 = 机柜整个宽度的一半 - 点击的z轴 ，y轴 = 整个机柜的高度 - 点击的y轴
+            * 第11个面、第13个面：原点在右上角，此时点击的z轴小于0，面上的x轴 = 单排机柜的宽度 - （机柜整个宽度的一半 + 点击的z轴），y轴 = 整个机柜的高度 - 点击的y轴
+            * 第6个面：原点在右上角，此时点击的z轴大于0，面上的x轴 = 单排机柜的宽度 - （机柜整个宽度的一半 - 点击的z轴），y轴 = 整个机柜的长度的一半 + 点击的x轴
+            * 第12个面：原点在右上角，此时点击的z轴小于0，面上的x轴 = 机柜整个宽度的一半 + 点击的z轴 ，y轴 = 整个机柜的长度的一半 + 点击的x轴
+            * 三个面的计算，只需要计算一次就好了 原点都在左上角
+            * x：点击的不管x轴为正负，x轴为整个机柜长度的一半加上x轴的值，就像把时间轴坐标的原点往x轴的负轴左拉了机柜长度的一半
+            * y：点击的不管z轴为正负，z轴为整个机柜宽度（360）的一半加上z轴的值，就像把时间轴坐标的原点往z轴的负轴拉了机柜宽度的一半
             * */
-            var pre = 2;
-            var Vecotr = [];
-            var INTERSECTED_position = {
-              x: INTERSECTED.position.x,
-              y: INTERSECTED.position.y,
-              z: INTERSECTED.position.z,
-            };
-            var the_one_point = {
-              x: the_one.point.x,
-              y: the_one.point.y,
-              z: the_one.point.z,
-            };
-            $.each(INTERSECTED_position,(key,value) =>{
-              if (Math.abs(the_one_point[key] - value) <= pre) {//如果有相同的向量 x、y、z 相差在2之内
-                Vecotr.push(key);
+            var currHeatMap = VM.HeatMapInstance_Arr[page - 1]
+            let clickPageWith = 0//所点击面的宽度
+            let clickPageHeight = 0//所点击面的高度
+            if (currHeatMap && page > 0) {
+              var clickPoint = {}//当前点击的点
+              var max_value//当前点击显示最大值控制
+              var min_value//当前点击显示最小值控制
+              if (Math.abs(the_one.point.z) >= VM.objSingleLength) {//表示点击的热通道
+                max_value = VM.all_max_hot
+                min_value = VM.temp_default[VM.key_hot]
+              } else {//表示点击的冷通道
+                max_value = VM.all_max_cold
+                min_value = VM.temp_default[VM.key_cold]
               }
-            });
-            var page = 0;//当前点击的是哪一个面
-            var left_behind = ['x','y','z'];
-            if (Vecotr.length > 0) {
-              if (VM.heatmap_type === 1){//三个平面的点击事件,只需要考虑Y轴
-                pre *= 6;//增加容错
-                if (Math.abs(VM.objHeight - the_one.point.y) <= pre){//上
-                  page = 101;//因为在创建heatmap对象的时候传入的值加了101，起始值为0
-                }else if (Math.abs(VM.objHeight / 2 - the_one.point.y) <= pre){//中
-                  page = 102;
-                }else if (Math.abs(the_one.point.y) <= pre){//下
-                  page = 103;
+              if (VM.heatmap_type === -1) {
+                clickPoint = {
+                  x: width / 2 + the_one.point.x,
+                  y: height / 2 + the_one.point.z
                 }
-              }else{
-                var point = Vecotr[0];
-                if (point === 'x'){ //x轴
-                  if (the_one.point[point] > 0) {//正数
-                    if ((Math.abs(the_one.point.z) - VM.objSingleLength / 2 )<= pre){//在中间
-                      page = 10;
-                    }else{
-                      if (the_one.point.z > 0) {
-                        page = 7;
-                      }else{
-                        page = 13;
-                      }
-                    }
-                  } else { //负数
-                    if ((Math.abs(the_one.point.z) - VM.objSingleLength / 2 )<= pre){//在中间
-                      page = 8;
-                    }else{
-                      if (the_one.point.z > 0) {
-                        page = 5;
-                      }else{
-                        page = 11;
-                      }
-                    }
+              } else {
+                var showPoint = {}//当前展示的点，展示出有温度值的点
+                clickPoint.y = height - the_one.point.y
+                var index = -1
+                var position = VM.calc_show_point_y(clickPoint.y)
+                if (page <= 4) {
+                  clickPoint.x = the_one.point.x + width / 2
+                  index = VM.calc_show_point_x(clickPoint.x, page)
+                  if (page === 1 || page === 4) {
+                    max_value = VM.all_max_hot
+                    min_value = VM.temp_default[VM.key_hot]
+                  } else if (page === 2 || page === 3) {
+                    max_value = VM.all_max_cold
+                    min_value = VM.temp_default[VM.key_cold]
                   }
-                  left_behind.splice(0,1);
-                } else if (point === 'y'){//y轴
-                  if (the_one.point[point] > 0) {//正数
-                    if ((Math.abs(the_one.point.z - VM.objSingleLength / 2))<= pre){//在中间
-                      page = 9;
-                    }else{
-                      if (the_one.point.z > 0) {
-                        page = 6;
-                      }else{
-                        page = 12;
-                      }
-                    }
-                  } else { //负数
+                  clickPageWith = VM.objLength//机柜的总长度
+                  clickPageHeight = VM.objHeight//机柜的总高度
+                } else if (page === 5 || page === 7) {
+                  clickPoint.x = VM.objAllCabinetWidth / 2 - the_one.point.z
+                  clickPageWith = VM.objSingleLength//单排机柜的宽度
+                  clickPageHeight = VM.objHeight//机柜的总高度
+                } else if (page === 6 || page === 12) {
+                  clickPoint.x = VM.objAllCabinetWidth / 2 + the_one.point.z
+                  if (page === 6) {
+                    clickPoint.x = VM.objSingleLength - (VM.objAllCabinetWidth / 2 - the_one.point.z)
                   }
-                  left_behind.splice(1,1);
-                } else if (point === 'z'){//z轴
-                  if (the_one.point[point] > 0) {//正数
-                    if  (Math.abs((the_one.point.z - VM.objAllCabinetWidth / 2 ))<= pre) {//第一面
-                      page = 1;
-                    }else if (Math.abs((the_one.point.z - VM.objAllCabinetWidth / 6)) <= pre) {
-                      page = 2;
-                    }
-                  } else { //负数
-                    if  (Math.abs(Math.abs(the_one.point.z) - VM.objAllCabinetWidth / 2 )<= pre) {//第四面
-                      page = 4;
-                    }else if ((Math.abs(the_one.point.z) - VM.objAllCabinetWidth / 6) <= pre) {
-                      page = 3;
-                    }
-                  }
-                  left_behind.splice(2,1);
+                  clickPoint.y = width / 2 + the_one.point.x
+                  position = VM.calc_show_point_y(clickPoint.y)
+                  clickPageWith = VM.objSingleLength//单排机柜的宽度
+                  clickPageHeight = VM.objLength//机柜的总长度
+                } else if (page === 11 || page === 13) {
+                  clickPoint.x = VM.objSingleLength - (VM.objAllCabinetWidth / 2 + the_one.point.z)
+                  clickPageWith = VM.objSingleLength//单排机柜的宽度
+                  clickPageHeight = VM.objHeight//机柜的总高度
                 }
               }
-              // console.log(page);
-              var width = VM.objLength + (VM.cubeArry[VM.cubeArry.length -1 ].width === 0 ? VM.objSingleWidth : 49); // 这里加的宽度要根据最后一个排机柜的宽度加
-              var height = VM.objHeight + VM.objSmallHeight;
-              if (VM.heatmap_type === 1){
-                height = VM.objAllCabinetWidth;
+              clickPoint.x = Number(clickPoint.x.toFixed(2))
+              clickPoint.y = Number(clickPoint.y.toFixed(2))
+              let currentData = currHeatMap.getData().data;
+              currentData.sort(function (a, b) {
+                return b.value - a.value
+              });
+              var clickVal = currHeatMap.getValueAt(clickPoint) + VM.defaultDataMin - 2;
+              if (currentData[0] && clickVal > currentData[0].value) {
+                clickVal = currentData[0].value
               }
-              // console.log(the_one.point);
-              /*
-              * 向量装换为2D，获取当前点击的点坐标系，整个机柜模型的世界坐标轴的原点在机柜的底部中心
-              * 前4面：原点在左上角，在面上的x轴 = 点击的x轴 + 机柜整个长度的一半，y轴 = 整个机柜的高度 - 点击的y轴
-              * 第5个面、第7个面：原点在右上角，此时点击的z轴大于0，面上的x轴 = 机柜整个宽度的一半 - 点击的z轴 ，y轴 = 整个机柜的高度 - 点击的y轴
-              * 第11个面、第13个面：原点在右上角，此时点击的z轴小于0，面上的x轴 = 单排机柜的宽度 - （机柜整个宽度的一半 + 点击的z轴），y轴 = 整个机柜的高度 - 点击的y轴
-              * 第6个面：原点在右上角，此时点击的z轴大于0，面上的x轴 = 单排机柜的宽度 - （机柜整个宽度的一半 - 点击的z轴），y轴 = 整个机柜的长度的一半 + 点击的x轴
-              * 第12个面：原点在右上角，此时点击的z轴小于0，面上的x轴 = 机柜整个宽度的一半 + 点击的z轴 ，y轴 = 整个机柜的长度的一半 + 点击的x轴
-              * 三个面的计算，只需要计算一次就好了 原点都在左上角
-              * x：点击的不管x轴为正负，x轴为整个机柜长度的一半加上x轴的值，就像把时间轴坐标的原点往x轴的负轴左拉了机柜长度的一半
-              * y：点击的不管z轴为正负，z轴为整个机柜宽度（360）的一半加上z轴的值，就像把时间轴坐标的原点往z轴的负轴拉了机柜宽度的一半
-              * */
-              var currHeatMap = VM.HeatMapInstance_Arr[page-1];
-              if (currHeatMap && page > 0) {
-                var clickPoint = {};//当前点击的点
-                var max_value;//当前点击显示最大值控制
-                var min_value;//当前点击显示最小值控制
-                if (Math.abs(the_one.point.z) >= VM.objSingleLength){//表示点击的热通道
-                  max_value = VM.all_max_hot;
-                  min_value = VM.temp_default[VM.key_hot];
-                }else{//表示点击的冷通道
-                  max_value = VM.all_max_cold;
-                  min_value = VM.temp_default[VM.key_cold];
-                }
-                if (VM.heatmap_type === 1){
-                  clickPoint = {
-                    x: width / 2 +  the_one.point.x,
-                    y: height / 2 +  the_one.point.z,
-                  };
-                }else{
-                  var showPoint = {};//当前展示的点，展示出有温度值的点
-                  clickPoint.y = height - the_one.point.y;
-                  var index = -1;
-                  var position = VM.calc_show_point_y(clickPoint.y);
-                  if(page <= 4){
-                    clickPoint.x = the_one.point.x + width / 2;
-                    index = VM.calc_show_point_x(clickPoint.x,page);
-                    if (page === 1 || page === 4) {
-                      max_value = VM.all_max_hot;
-                      min_value = VM.temp_default[VM.key_hot];
-                    }else if (page === 2 || page === 3){
-                      max_value = VM.all_max_cold;
-                      min_value = VM.temp_default[VM.key_cold];
-                    }
-                  }else if(page === 5 || page === 7){
-                    clickPoint.x = VM.objAllCabinetWidth / 2 - the_one.point.z;
-                  }else if(page === 6 || page === 12){
-                    clickPoint.x = VM.objAllCabinetWidth / 2 + the_one.point.z;
-                    if (page === 6) {
-                      clickPoint.x = VM.objSingleLength - (VM.objAllCabinetWidth / 2 - the_one.point.z);
-                    }
-                    clickPoint.y = width / 2 + the_one.point.x;
-                    position = VM.calc_show_point_y(clickPoint.y);
-                  }else if(page === 11 || page === 13){
-                    clickPoint.x = VM.objSingleLength - (VM.objAllCabinetWidth / 2 + the_one.point.z);
-                  }
-                }
-                clickPoint.x = Number(clickPoint.x.toFixed(2));
-                clickPoint.y = Number(clickPoint.y.toFixed(2));
-                var clickVal = currHeatMap.getValueAt(clickPoint) + 16;
-                // if (clickVal > max_value){//控制显示最大值
-                //   clickVal = Number((clickVal - max_value) * VM.max_coe + max_value).toFixed(2);
-                // }else if (clickVal < min_value){//控制显示最小值
-                //   clickVal = Number(min_value - (min_value - clickVal) * VM.min_coe).toFixed(2);
+              // if (clickVal > max_value){//控制显示最大值
+              //   clickVal = Number((clickVal - max_value) * VM.max_coe + max_value).toFixed(2);
+              // }else if (clickVal < min_value){//控制显示最小值
+              //   clickVal = Number(min_value - (min_value - clickVal) * VM.min_coe).toFixed(2);
+              // }
+              // console.log(clickPoint);
+              // console.log(currHeatMap.getValueAt(clickPoint) + 16);//如果最低值不是设置了0，这里返回的是插值，所以需要加上最低值
+              //一些近点计算
+              /**
+               * 前四个面：先计算所点击的是哪一列机柜，在计算所点击的位置是在5个位置的哪一个
+               */
+                // function deal_position() {
+                //
                 // }
-                // console.log(clickPoint);
-                // console.log(currHeatMap.getValueAt(clickPoint) + 16);//如果最低值不是设置了0，这里返回的是插值，所以需要加上最低值
-                VM.nowItme = {
-                  name: '当前温度：' + clickVal + '℃',
-                  x: event.offsetX,
-                  y: event.offsetY + 100,
-                  is3d: true,
-                };
-                VM.devShow = true;
-                // setTimeout(()=>{
-                //   VM.main_ico_3d.fadeOut(200,()=>{
-                //     VM.devShow = false;
-                //     VM.nowItme = {};
-                //   });
-                // },1500)
+                // if(page <= 4){
+                //   clickPoint.x - VM.cubeArry
+                // }
+              let offsetX = event.offsetX || VM.getScreenClickPoint(event, 'clientX');
+              let offsetY = event.offsetY ? event.offsetY + 100 : VM.getScreenClickPoint(event, 'clientY');
+              VM.nowItme = {
+                name: "当前温度：" + clickVal + "℃",
+                x: offsetX,
+                y: offsetY,
+                is3d: true
               }
+              VM.devShow = true
+              // setTimeout(()=>{
+              //   VM.main_ico_3d.fadeOut(200,()=>{
+              //     VM.devShow = false;
+              //     VM.nowItme = {};
+              //   });
+              // },1500)
             }
           }
-        }else{
+        } else if (INTERSECTED.name.indexOf(VM.cabinetChoseMenu) >= 0) {//判断碰撞对象是否是3D的切换菜单
+          VM.show_threeD_chose_menu(event)
+        } else {
           // VM.onDocumentMove_clear();//清除上一个机柜名提示
         }
       } else {
-        if (INTERSECTED) INTERSECTED.material.color.set(INTERSECTED.currentHex);
-        INTERSECTED = null;
+        if (INTERSECTED) {
+          INTERSECTED.material.color.set(INTERSECTED.currentHex)
+        }
+        INTERSECTED = null
         // VM.onDocumentMove_clear();//清除上一个机柜名提示
       }
     },
@@ -2783,16 +2936,16 @@ export default {
     * x：当前点击的x轴；
     * page：当前第几面
     * */
-    calc_show_point_x(x,page){
+    calc_show_point_x(x, page) {
       var VM = this;
       var current_x = -1;//找到当前选中的x是第几列机柜
-      if (!!x){
+      if (!!x) {
         return current_x
       }
-      $.each(VM.cubeArry,(key,value)=>{
-        if(page <= 2 && key % 2 === 0){//第一第二面，只需要遍历单数
+      $.each(VM.cubeArry, (key, value) => {
+        if (page <= 2 && key % 2 === 0) {//第一第二面，只需要遍历单数
           return true
-        }else if(page > 2 && key % 2 === 1){//第三第四面，只需要遍历双数
+        } else if (page > 2 && key % 2 === 1) {//第三第四面，只需要遍历双数
           return true
         }
         var cabinet_width = VM.calc_cabinet_width(value);
@@ -2808,7 +2961,7 @@ export default {
     * 计算当前是第几个位置
     * y,当前的y轴
     * */
-    calc_show_point_y(y){
+    calc_show_point_y(y) {
       return Math.floor(y / (this.objHeight / 5)) + 1;
     },
     /*
@@ -2823,16 +2976,12 @@ export default {
     myCameraTween: function (cameraObj, angle, segs, during, tag, type) {
       var VM = this;
       var x = cameraObj.position.x, y = cameraObj.position.y, z = cameraObj.position.z;
-      // console.log('x:' + x,'y:' + y,'z:' + z);
       var endPosArray = [];
       var perAngle = angle / segs;//计算得到每次转的角度
       for (var i = 1; i <= segs; i++) {
         var endPos = {
-          // "x": tag === VM.tag_left ? z * Math.sin(i * perAngle) + x * Math.cos(i * perAngle) : 0,
           "x": z * Math.sin(i * perAngle) + x * Math.cos(i * perAngle),
-          // "y":  tag === VM.tag_top ? y * Math.cos(i * perAngle) - z * Math.sin(i * perAngle)  : y,
           "y": y,
-          // "z": tag === VM.tag_left ? z * Math.cos(i * perAngle) - x * Math.sin(i * perAngle) : z * Math.cos(i * perAngle)
           "z": z * Math.cos(i * perAngle) - x * Math.sin(i * perAngle)
         };
         endPosArray.push(endPos);
@@ -2843,6 +2992,15 @@ export default {
         endPosArray.push(VM.reset_position);
         segs = 1;//重置只转一次
       }
+      if (!VM.renderer) {
+        return;
+      }
+      cameraObj.position.set(endPosArray[0].x, endPosArray[0].y, endPosArray[0].z);
+      VM.CAMERA.lookAt(new THREE.Vector3(VM.reset_camera.x, VM.reset_camera.y, VM.reset_camera.z));//VM.scene.position
+      VM.isRoateing = false;
+      VM.renderer.clear();//清除场景
+      VM.render_render('myCameraTween');
+      return
       var id = setInterval(function () {
         if (!VM.renderer) {
           return;
@@ -2850,14 +3008,11 @@ export default {
         VM.renderer.clear();//清除场景
         VM.render_render('myCameraTween');
         if (flag == segs) {
+          VM.mouseClickEndTime = VM.getTimeNow();
+          VM.mouseClickDuringTime = VM.mouseClickEndTime - VM.mouseClickStartTime;//持续时间
           clearInterval(id);
           id = null;
         } else {
-          // if ((type === 0 && endPosArray[flag].y < 450) || (type === 1 && (endPosArray[flag].y < -120 || endPosArray[flag].y > 2877 ))){
-          //   console.log(111)
-          //   clearInterval(id);
-          //   return
-          // }
           cameraObj.position.set(endPosArray[flag].x, endPosArray[flag].y, endPosArray[flag].z);
           VM.CAMERA.lookAt(new THREE.Vector3(VM.reset_camera.x, VM.reset_camera.y, VM.reset_camera.z));//VM.scene.position
           flag++;
@@ -3023,11 +3178,11 @@ export default {
       // this.$router.options.routes[2].children = [];//清空一下之前的路由
       // this.$router.push({path: '/login'});
     },
-    changeViewFun: function (flag,type) {
+    changeViewFun: function (flag, type) {
       var VM = this;
-      // if (VM.MyisRender){//正在渲染
-      //   return
-      // }
+      if (VM.isLoading) {//正在渲染
+        return
+      }
       // clearTimeout(VM.lockTimeout);
       // VM.MyisRender = true;
       // VM.lockTimeout = setTimeout(()=>{
@@ -3037,20 +3192,21 @@ export default {
       VM.old_temp_camera_Obj = {};//切换视图的时候要重置一下旧数据
       VM.old_temp_camera_list = [];//切换视图的时候要重置一下旧数据
       VM.has_door = false;//重置一下是否加载了门
-      if (flag === 2){
+      VM.devShow = false;
+      if (flag === 2) {
         VM.heatmap_type = 0;
         VM.heatmap_view = -1;
         if (VM.current_capacity_type === type) {//容量云图切换的时候点了当前类型
           return
-        }else{
+        } else {
           VM.current_capacity_type = type
         }
         if (VM.viewFlag === 2) {//容量云图之间的切换
-          this.$nextTick(()=>{
+          this.$nextTick(() => {
             this.animation('changeView');
           });
           return
-        }else{//切换到容量云图
+        } else {//切换到容量云图
           VM.threeD_rerender(flag);
           return
         }
@@ -3059,48 +3215,55 @@ export default {
       if (VM.viewFlag === flag) {
         return
       }
-      VM.heatmap_type = 0;
-      VM.heatmap_view = -1;
-      VM.threeD_rerender(flag);
+      this.threeD_chose_menu.map(item => {//重置一下
+        item.showChildren = false
+      })
+      VM.heatmap_type = 0
+      VM.cap_temp_type = -1
+      VM.heatmap_view = -1
+      VM.heatmap_view1 = -1
+      VM.heatmap_view2 = -1
+      VM.cap_temp_view = -1
+      VM.threeD_rerender(flag)
     },
-    threeD_rerender:function(flag){
+    threeD_rerender: function (flag) {
       var VM = this;
       VM.viewFlag = flag;
       VM.isTransparent = flag !== 4;
       VM.main_normal_close();
       VM.render_dispose();//清除缓存
       clearInterval(this.mainThreeI);
-      VM.$nextTick(() => {
-        VM.ThreeDinterval();//设置定时器，实时刷新数据
-      });
+      // VM.$nextTick(() => {
+      VM.ThreeDinterval();//设置定时器，实时刷新数据
+      // });
     },
     clearFun: function () {
-      var VM = this;
-      this.main_normal_close();
-      clearInterval(this.mainThreeI);
-      clearTimeout(this.Timeinterval_3d);
-      clearInterval(this.heatmap_four_mesh_Timer);
-      VM.webglcontextlost();
-      VM.webglcontextrestored(0);
-      VM.clearMesh(VM.scene);
-      VM.clearMesh(VM.objGroup);
-      VM.clearMesh(VM.cubeArry);
+      var VM = this
+      this.main_normal_close()
+      clearInterval(this.mainThreeI)
+      clearTimeout(this.Timeinterval_3d)
+      clearInterval(this.heatmap_four_mesh_Timer)
+      VM.webglcontextlost()
+      VM.webglcontextrestored(0)
+      VM.clearMesh(VM.scene)
+      VM.clearMesh(VM.objGroup)
+      VM.clearMesh(VM.cubeArry)
       VM.clearRenderer();
-      VM.loadMTL.forEach((MTL,index)=>{
-        VM[MTL.data_name] && VM[MTL.data_name].dispose();
-        VM[MTL.data_name] = null;
-      });
-      VM.loadJPG.forEach((MTL,index)=>{
-        VM[MTL.data_name] && VM[MTL.data_name].dispose();
-        VM[MTL.data_name] = null;
-      });
-      VM.scene = null;
-      VM.objGroup = null;
-      this.mainThreeI = null;
-      this.Timeinterval_3d = null;
+      VM.clearMtl(VM.jg_02);
+      VM.clearMtl(VM.men_01);
+      VM.clearMtl(VM.men_02);
+      VM.clearMtl(VM.jg_03);
+      VM.loadJPG.forEach((MTL, index) => {
+        VM[MTL.data_name] = null
+      })
+      VM.scene = null
+      VM.objGroup = null
+      this.mainThreeI = null
+      this.Timeinterval_3d = null
       // window.removeEventListener( 'click', VM.dev_click_fun(), false );
+      window.removeEventListener("resize", VM.onWindowResize, false)
     },
-    clearMesh(obj){
+    clearMesh(obj) {
       var VM = this;
       if (obj) {
         var tange = obj.children || obj;
@@ -3135,6 +3298,7 @@ export default {
         * 位置13:(cubeArry最后一个为双数的热通道 + cubeArry最后一个为双数的冷通道) /2,
         * */
         // var m = 2;
+        console.time('heatmap_three');
         for (let m = 1; m <= 13; m++) {
           var cubeArrL = VM.cubeArry.length;
           var width = VM.objLength + VM.objSingleWidth; // + VM.half_ll //这里删除了半个门的宽度，因为没加门
@@ -3143,7 +3307,7 @@ export default {
           var data_arr = [];//位置与数据对象数组
           var data_max = 0;//一组数据的最大值
           var opacity = 0.9;
-          if(ifNullData(VM.all_passageway_data[m])){
+          if (ifNullData(VM.all_passageway_data[m])) {
             VM.all_passageway_data[m] = {};
           }
           if (m <= 4) {
@@ -3152,29 +3316,30 @@ export default {
             for (var n = 0; n < cubeArrL; n++) {
               var passageway_data = [];//
               if ((m === 1 && n % 2 === 1) || (m === 4 && n % 2 === 0)) {//位置1: 单数,热通道 //位置4: 双数,热通道
-                passageway_data = VM.set_temp_data_type(VM.cubeArry[n].hot_passageway,VM.key_hot);
+                passageway_data = VM.set_temp_data_type(VM.cubeArry[n].hot_passageway, VM.key_hot);
               } else if ((m === 2 && n % 2 === 1) || (m === 3 && n % 2 === 0)) {//位置2: 单数,冷通道 //位置3: 双数,冷通道
-                passageway_data = VM.set_temp_data_type(VM.cubeArry[n].cold_passageway,VM.key_cold);
+                passageway_data = VM.set_temp_data_type(VM.cubeArry[n].cold_passageway, VM.key_cold);
               }
               if (!ifNullData(passageway_data)) {
                 n_arr.push(n);
-                if (!isEqual(VM.all_passageway_data[m][n],passageway_data)){
-                // if (!VM.Is_the_same_with_old_data(m, n, passageway_data)){
+                if (!isEqual(VM.all_passageway_data[m][n], passageway_data)) {
+                  // if (!VM.Is_the_same_with_old_data(m, n, passageway_data)){
                   is_the_same = false;
                 }
                 VM.all_passageway_data[m][n] = passageway_data;
                 for (let k = 0; k < passageway_data.length; k++) {
-                  var all_data = VM.cal_heatmap_data_position(width, height, cubeArrL, passageway_data[k], n,k,n_arr.indexOf(n));
+                  var all_data = VM.cal_heatmap_data_position(width, height, cubeArrL, passageway_data[k], n, k, n_arr.indexOf(n));
                   // data_position.value = passageway_data[k].temp;
                   data_max = Math.max(data_max, all_data.max);
-                  data_arr = [...data_arr,...all_data.position_arr];
+                  data_arr = [...data_arr, ...all_data.position_arr];
                   if (m === 2 && k === 1) {
                     VM.demo_point = {x: data_arr[0].x + data_arr[1].x, y: data_arr[0].y + data_arr[1].y}
                   }
                 }
+
               }
             }
-            if (is_the_same){//如果和旧数据一样，那就别渲染了
+            if (is_the_same) {//如果和旧数据一样，那就别渲染了
               continue
             }
           } else {
@@ -3198,8 +3363,8 @@ export default {
           var new_passageway_data = [];
           if (m === 5) {//位置5
 
-            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[1].hot_passageway,VM.key_hot),
-              ...VM.set_temp_data_type(VM.cubeArry[1].cold_passageway,VM.key_cold)];
+            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[1].hot_passageway, VM.key_hot),
+              ...VM.set_temp_data_type(VM.cubeArry[1].cold_passageway, VM.key_cold)];
 
             // new_passageway_data = VM.cal_heatmap_ave_position(VM.cubeArry[1].hot_passageway, VM.cubeArry[1].cold_passageway);
           } else if (m === 6) {//位置6
@@ -3207,21 +3372,21 @@ export default {
             var new_all_hot1 = VM.cal_heatmap_one_position(VM.cal_heatmap_one_way_data(1, VM.key_way_hot), 1);
             var new_all_cold1 = VM.cal_heatmap_one_position(VM.cal_heatmap_one_way_data(1, VM.key_way_cold), 1);
 
-            new_passageway_data = [...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_hot1, new_all_hot1, true),VM.key_hot),
-              ...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_cold1, new_all_cold1, true),VM.key_cold)];
+            new_passageway_data = [...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_hot1, new_all_hot1, true), VM.key_hot),
+              ...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_cold1, new_all_cold1, true), VM.key_cold)];
 
             // new_passageway_data = VM.cal_heatmap_ave_position(new_all_hot1, new_all_hot1, true);
           } else if (m === 7) {//位置7
 
-            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 1].hot_passageway,VM.key_hot),
-              ...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 1].cold_passageway,VM.key_cold)];
+            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 1].hot_passageway, VM.key_hot),
+              ...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 1].cold_passageway, VM.key_cold)];
 
             // new_passageway_data = VM.cal_heatmap_ave_position(VM.cubeArry[cubeArrL - 1].hot_passageway, VM.cubeArry[cubeArrL - 1].cold_passageway);
           } else if (m === 8) {//位置8 //暂时不需要
 
             //奇数排冷通道当做热通道位置处理 偶数排冷通道当做冷通道位置处理
-            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[0].cold_passageway,VM.key_cold),
-              ...VM.set_temp_data_type(VM.cubeArry[1].cold_passageway,VM.key_hot)];
+            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[0].cold_passageway, VM.key_cold),
+              ...VM.set_temp_data_type(VM.cubeArry[1].cold_passageway, VM.key_hot)];
 
             // new_passageway_data = VM.cal_heatmap_ave_position(VM.cubeArry[0].cold_passageway, VM.cubeArry[1].cold_passageway);
           } else if (m === 9) {//位置9
@@ -3230,21 +3395,21 @@ export default {
             var new_all_cold2 = VM.cal_heatmap_one_position(VM.cal_heatmap_one_way_data(0, VM.key_way_cold), 1);//偶数排冷通道
 
             //奇数排冷通道当做热通道位置处理 偶数排冷通道当做冷通道位置处理
-            new_passageway_data = [...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_hot2, new_all_hot2, true),VM.key_hot),
-              ...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_cold2, new_all_cold2, true),VM.key_cold)];
+            new_passageway_data = [...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_hot2, new_all_hot2, true), VM.key_hot),
+              ...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_cold2, new_all_cold2, true), VM.key_cold)];
 
             // new_passageway_data = VM.cal_heatmap_ave_position(new_all_hot2, new_all_hot2, true);
           } else if (m === 10) {//位置10  //暂时不需要
 
             //奇数排冷通道当做热通道位置处理 偶数排冷通道当做冷通道位置处理
-            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 1].cold_passageway,VM.key_hot),
-              ...VM.set_temp_data_type( VM.cubeArry[cubeArrL - 2].cold_passageway,VM.key_cold)];
+            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 1].cold_passageway, VM.key_hot),
+              ...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 2].cold_passageway, VM.key_cold)];
 
             // new_passageway_data = VM.cal_heatmap_ave_position(VM.cubeArry[cubeArrL - 1].cold_passageway, VM.cubeArry[cubeArrL - 2].cold_passageway);
           } else if (m === 11) {//位置11
 
-            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[0].hot_passageway,VM.key_hot),
-              ...VM.set_temp_data_type(VM.cubeArry[0].cold_passageway,VM.key_cold)];
+            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[0].hot_passageway, VM.key_hot),
+              ...VM.set_temp_data_type(VM.cubeArry[0].cold_passageway, VM.key_cold)];
 
             // new_passageway_data = [...VM.cubeArry[0].hot_passageway,...VM.cubeArry[0].cold_passageway];
             // new_passageway_data = VM.cal_heatmap_ave_position(VM.cubeArry[0].hot_passageway, VM.cubeArry[0].cold_passageway);
@@ -3253,23 +3418,23 @@ export default {
             var new_all_hot3 = VM.cal_heatmap_one_position(VM.cal_heatmap_one_way_data(0, VM.key_way_hot), 1);
             var new_all_cold3 = VM.cal_heatmap_one_position(VM.cal_heatmap_one_way_data(0, VM.key_way_cold), 1);
 
-            new_passageway_data = [...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_hot3, new_all_hot3, true),VM.key_hot),
-              ...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_cold3, new_all_cold3, true),VM.key_cold)];
+            new_passageway_data = [...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_hot3, new_all_hot3, true), VM.key_hot),
+              ...VM.set_temp_data_type(VM.cal_heatmap_ave_position(new_all_cold3, new_all_cold3, true), VM.key_cold)];
 
             // new_passageway_data = VM.cal_heatmap_ave_position(new_all_hot3, new_all_hot3, true);
             // new_passageway_data = [...new_all_hot3,...new_all_cold3];
           } else if (m === 13) {//位置13
 
-            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 2].hot_passageway,VM.key_hot),
-              ...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 2].cold_passageway,VM.key_cold)];
+            new_passageway_data = [...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 2].hot_passageway, VM.key_hot),
+              ...VM.set_temp_data_type(VM.cubeArry[cubeArrL - 2].cold_passageway, VM.key_cold)];
 
             // new_passageway_data = [...VM.cubeArry[cubeArrL - 2].hot_passageway,...VM.cubeArry[cubeArrL - 2].cold_passageway];
             // new_passageway_data = VM.cal_heatmap_ave_position(VM.cubeArry[cubeArrL - 2].hot_passageway, VM.cubeArry[cubeArrL - 2].cold_passageway);
 
           }
-          if (m > 4){
-            if (isEqual(VM.all_passageway_data[m],new_passageway_data)){
-            // if (VM.Is_the_same_with_old_data(m,null,new_passageway_data)){
+          if (m > 4) {
+            if (isEqual(VM.all_passageway_data[m], new_passageway_data)) {
+              // if (VM.Is_the_same_with_old_data(m,null,new_passageway_data)){
               continue
             }
             VM.all_passageway_data[m] = new_passageway_data;
@@ -3277,28 +3442,31 @@ export default {
           // console.log(m + ':' + JSON.stringify(new_passageway_data));
           if (!ifNullData(new_passageway_data)) {
             for (let k = 0; k < new_passageway_data.length; k++) {
-              var all_data1 = VM.cal_heatmap_nine_data_position(width, height, new_passageway_data[k], new_passageway_data.length,m,k);
+              var all_data1 = VM.cal_heatmap_nine_data_position(width, height, new_passageway_data[k], new_passageway_data.length, m, k);
               // data_position.value = new_passageway_data[k].temp;
               data_max = Math.max(data_max, all_data1.max);
-              data_arr = [...data_arr,...all_data1.position_arr];
+              data_arr = [...data_arr, ...all_data1.position_arr];
             }
           }
           VM.filter_repeat_point(data_arr);
-          var heatmapBase64 = VM.init_heatmap(width, height, data_arr, data_max, m);//拿到base64的图片资源
+          var heatmapBase64 = VM.init_heatmap(width, height, data_arr, data_max, m, VM.defaultRadius);//拿到base64的图片资源
           VM.heatmap_map[m - 1] = VM.init_heatmap_canvas(width, height, heatmapBase64);
           if (VM.heatmap_Mesh.length < 13) {//说明是第一次加载
             VM.init_heatmap_mesh(width, height, VM.heatmap_map[m - 1], m, opacity);
           } else {
             //注意这里减一是因为之前的设定就是m是从1开始的，方便位置计算
-            VM.heatmap_Mesh[m - 1].material.needsUpdate = true;//使纹理可以更新
-            VM.heatmap_Mesh[m - 1].geometry.colorsNeedUpdate = true;//使颜色可以更新
-            VM.heatmap_Mesh[m - 1].material.map.dispose();
-            setTimeout(()=>{
+            new Promise((resolve,rejected)=>{
+              VM.heatmap_Mesh[m - 1].material.needsUpdate = true;//使纹理可以更新
+              VM.heatmap_Mesh[m - 1].geometry.colorsNeedUpdate = true;//使颜色可以更新
+              VM.heatmap_Mesh[m - 1].material.map.dispose();
+              resolve()
+            }).then(()=>{
               VM.heatmap_Mesh[m - 1].material.map = VM.heatmap_map[m - 1];
               VM.render_render();//注意，这里是云图刷新数据后不更新的主要问题，主动render一次
-            },0)
+            });
           }
         }
+        console.timeEnd('heatmap_three');
       }
     },
     /*
@@ -3322,7 +3490,7 @@ export default {
         VM.cal_heatmap_nine_position(heatmap_mesh, m);
       }
       var position = VM.cal_heatmap_position(m);
-      heatmap_mesh.name= VM.cabinetTemp_ + m;
+      heatmap_mesh.name = VM.cabinetTemp_ + m;
       heatmap_mesh.position.set(position.x, position.y, position.z);
       heatmap_mesh.material.needsUpdate = true;//材质可以更新
       heatmap_mesh.geometry.colorsNeedUpdate = true;//使颜色可以更新
@@ -3334,48 +3502,37 @@ export default {
     init_heatmap_canvas: function (width, height, heatmapBase64) {
       var heatmapImg = new Image();
       heatmapImg.src = heatmapBase64;
-      var canvas = document.createElement("canvas");
-      canvas.width = width; //这里canvas大小设置要和图片一致
-      canvas.height = height;
-      var context = canvas.getContext("2d");
-      heatmapImg.onload = function () {
-        context.drawImage(heatmapImg, 0, 0);
-      };
-      // function drawImage() {
-      //   context.drawImage(heatmapImg,0,0);
-      //   console.log('drawImage:'+ m);
-      //   return canvas
-      // }
-      //这里做超时回收是因为 new Image()的onload 是一个异步的加载过程，如果直接回收，会导致前面异步记载回来之后context的内容为空，drawImage报错，图片就画不出来了
-      setTimeout(function () {
-        //回收
-        if (document.getElementById("CanvasHide")) {
-          document.getElementById("CanvasHide").appendChild(canvas);/*放入垃圾桶*/
-          document.getElementById("CanvasHide").innerHTML = '';//将a从页面上删除 /*清除垃圾桶*/
-        }
-        canvas = null;
-        context = null;
-      }, 1000);
-      // return drawImage;
-      return new THREE.CanvasTexture(canvas);
+      heatmapImg.width = width;
+      heatmapImg.height = height;
+      return new THREE.CanvasTexture(heatmapImg)
     },
-    init_heatmap: function (width, height, points, data_max, m,radius) {
-      var VM = this;
+    init_heatmap: function (width, height, points, data_max, m, radius) {
+      var VM = this
       // console.log(JSON.stringify(points));
-      if (m > 4){
+      let new_data_max = VM.defaultDataMax//默认最大值
+      let new_defaultRadius = VM.defaultRadius//默认渲染半径
+      let per = new_data_max / new_defaultRadius//圈大小的系数
+      if (data_max > VM.defaultDataMax) {
+        // new_defaultRadius = data_max / per;
+        new_data_max = data_max
+      }
+      if (m > 4) {
         // return VM.init_heatmap_mine(width, height, points, data_max, m);
       }
-      var heatmap_dom = document.createElement("div");//创建一个dom节点来渲染热力图
+      if (m === 6 || m === 12) {//中间两个渲染大小大一点
+        new_defaultRadius = 90
+      }
+      var heatmap_dom = document.createElement("div")//创建一个dom节点来渲染热力图
       // heatmap_dom.id = 'heatmap';
-      heatmap_dom.setAttribute('class','my_heatmap');
+      heatmap_dom.setAttribute("class", "my_heatmap")
       //这里图片大小设置要和canvas一致，这边宽度需要加一个机柜，还不找到为什么
-      $(heatmap_dom).css({width: width || '600px', height: height,display: 'none'});
-      $('#main_model').append(heatmap_dom);
+      $(heatmap_dom).css({width: width || "600px", height: height, display: "none"})
+      $("#main_model").append(heatmap_dom)
       var HeatMapInstance = Heatmap.create({
         container: heatmap_dom,
         backgroundColor: 0xffff0a,//背景颜色
         // backgroundColor: '#ffffff',//背景颜色
-        radius: radius || VM.defaultRadius,//每个数据点的半径,
+        radius: radius || new_defaultRadius,//每个数据点的半径,
         // radius: (m > 4 ? 10 : 16),//每个数据点的半径,
         // maxOpacity: 1,//最大不透明度，如果设置了不透明度，就会给覆盖
         // minOpacity: 0,//最小不透明度，如果设置了不透明度，就会给覆盖
@@ -3394,7 +3551,7 @@ export default {
         //   "0.919":"#ffc800",//value为34的颜色 34/37
         //   "1":"#f00000",//value为37的颜色 37/37
         // }
-      });
+      })
       /*假数据*/
       var pointss = [];
       var max = 0;
@@ -3414,14 +3571,14 @@ export default {
         pointss.push(point);
       }
       var data = {
-        min: 18,//最小值默认设为0
-        max: 37,//最大值默认设为37
+        min: VM.defaultDataMin,//最小值默认设为0
+        max: new_data_max,//最大值默认设为37
         data: points,
         // data: [...points,...pointss],
       };
       HeatMapInstance.setData(data);//从热图实例中删除所有先前存在的点，然后重新初始化数据存储。
       HeatMapInstance.repaint();//重绘
-      VM.HeatMapInstance_Arr[m-1] = HeatMapInstance;
+      VM.HeatMapInstance_Arr[m - 1] = HeatMapInstance;
       setTimeout(function () {
         $('.my_heatmap').remove();
       }, 1000);
@@ -3442,9 +3599,9 @@ export default {
         offset1 = 0;
         offset2 = 1;
       }
-      var Gradient = context.createLinearGradient(0,0,width,0);
-      Gradient.addColorStop(offset1,'#14dcff');
-      Gradient.addColorStop(offset2,'#96ff14');
+      var Gradient = context.createLinearGradient(0, 0, width, 0);
+      Gradient.addColorStop(offset1, '#14dcff');
+      Gradient.addColorStop(offset2, '#96ff14');
       context.fillStyle = Gradient;
       context.fillRect(0, 0, width, height);
       //这里做超时回收是因为 new Image()的onload 是一个异步的加载过程，如果直接回收，会导致前面异步记载回来之后context的内容为空，drawImage报错，图片就画不出来了
@@ -3458,38 +3615,6 @@ export default {
         context = null;
       }, 1000);
       return canvas.toDataURL()
-    },
-    init_smoke: function () {
-      var VM = this;
-      var smokeTexture = THREE.ImageUtils.loadTexture('/static/models/Smoke-Element.png');
-      var limit = 50;
-      for (let p = 0; p < limit; p++) {
-        var color = '#0709dd';
-        if (p < limit / 2) {
-          color = '#dd010a'
-        }
-        var smokeMaterial = new THREE.MeshLambertMaterial({
-          map: smokeTexture,
-          color: color,
-          transparent: true,
-          side: THREE.DoubleSide
-        });
-        var smokeGeo = new THREE.PlaneGeometry(300, 300);
-        var particle = new THREE.Mesh(smokeGeo, smokeMaterial);
-        particle.position.set(Math.random() * 500 - 250, Math.random() * 500 - 250, Math.random() * 1000 - 100);
-        particle.rotation.z = Math.random() * 360;
-        VM.scene.add(particle);
-        VM.smokeParticles.push(particle);
-      }
-
-    },
-    evolveSmoke: function () {
-      var VM = this;
-      VM.delta = VM.clock.getDelta();
-      var sp = VM.smokeParticles.length;
-      while (sp--) {
-        VM.smokeParticles[sp].rotation.z += (VM.delta * 0.01);
-      }
     },
     /*
     * 处理温度值与颜色对应的方法
@@ -3546,7 +3671,7 @@ export default {
         }
         var id = 'cap_' + value;
         var span_html = `<span id="${id}">${value}</span>`;
-        if (i === key_arr.length - 1){
+        if (i === key_arr.length - 1) {
           span_html = `<span id="${id}">${value}</span><span id="cap_100">100</span>`
         }
         $('#color_cap').append(`<div id="${id} + '_div'" style="background: ${new_color_list[i]}" class="cap_color_div">${span_html}</div>`)
@@ -3590,34 +3715,34 @@ export default {
       this.clearCache(this.cubeArry[i].mesh);
       this.cubeArry[i]['old_' + current_key] = current_per;
       this.mesh2[i].userData = {per: current_per};//记录一下当前的温度值
-      this.mesh2[i].material.map = this.initCabinetPercent(current_per,this.calc_cabinet_width(this.cubeArry[i]),0,i);//设备容量数值
+      this.mesh2[i].material.map = this.initCabinetPercent(current_per, this.calc_cabinet_width(this.cubeArry[i]), 0, i);//设备容量数值
       current_per = this.check_value(current_per);
-      this.creat_capacity_Mesh(this.new_calc_capacity_position1(current_per),i);//创建立体模型
+      this.creat_capacity_Mesh(this.new_calc_capacity_position1(current_per), i);//创建立体模型
       // this.cube[i].position.setY(this.new_calc_capacity_position(current_per));// 容量云图实现依据，将机柜的Y轴进行偏移达到效果
     },
     /*
     * 处理容量云图颜色，找接近的颜色值，以差值10为分界
     * capacity_color_list
     * */
-    deal_capacity_color: function (i,value) {
-      var VM = this;
-      var color = VM.capacity_color_list[0];
-      var flag = false;
-      var current_per = ifNullData(i) ? value : VM.cubeArry[i][VM.get_current_capacity_key(i)];
-      $.each(VM.capacity_color_list,(index,item)=>{
+    deal_capacity_color: function (i, value, defaultColor) {
+      var VM = this
+      var color = defaultColor || VM.capacity_color_list[0]
+      var flag = false
+      var current_per = ifNullData(i) ? value : VM.cubeArry[i][VM.get_current_capacity_key(i)]
+      $.each(VM.capacity_color_list, (index, item) => {
         if (flag) {
           return
         }
         if (current_per < item.key) {
           flag = true;
-          if (index !== 0 && (item.key - current_per > 10)){
+          if (index !== 0 && (item.key - current_per > 10)) {
             color = VM.capacity_color_list[index - 1].color
-          } else{
+          } else {
             color = item.color
           }
-        }else if (current_per == item.key){
+        } else if (current_per == item.key) {
           color = item.color
-        }else if (current_per > 100){
+        } else if (current_per > 100) {
           flag = true;
           color = VM.capacity_color_list[VM.capacity_color_list.length - 1].color
         }
@@ -3627,14 +3752,14 @@ export default {
     /*
     * 获取当前容量类型
     * */
-    get_current_capacity_key:function(i){
-      var VM = this;
-      var new_key = 'pdc_rate';
-      $.each(VM.capacity_type_list,(index,value)=>{
+    get_current_capacity_key: function (i) {
+      var VM = this
+      var new_key = "pdc_rate"
+      $.each(VM.capacity_type_list, (index, value) => {
         if (VM.current_capacity_type === value.index) {
           new_key = value.key
         }
-      });
+      })
       return new_key
     },
     /*
@@ -3642,91 +3767,155 @@ export default {
     * 根据位置计算偏移量，
     *
     * */
-    creat_capacity_Mesh:function(height,i){
+    creat_capacity_Mesh: function (height, i) {
       if (height === 0) {//如果是0 就不画了
         return
       }
-      var VM = this;
-      var x = VM.cubeArry[i].x;
-      var z = VM.objSingleLength;
-      var singleWidth = VM.calc_cabinet_width(VM.cubeArry[i]);
+      var VM = this
+      var x = VM.cubeArry[i].x
+      var z = VM.objSingleLength
+      var singleWidth = VM.calc_cabinet_width(VM.cubeArry[i])
+      var cur_capacity = VM.capacity_type_list.find(item => item.index === VM.current_capacity_type)
+      var color = cur_capacity ? cur_capacity.colors[0] : "#4cbcff"//柱体颜色
       if (i % 2 === 0) {//偶数，后面一排
-        z = -z;
+        z = -z
+        color = cur_capacity ? cur_capacity.colors[1] : "#3cebff"
       }
-      var geometry = new THREE.BoxGeometry(singleWidth - 4,height,VM.objSingleLength);//盒子模型 减 4是因为有间隙 4
+      var geometry = new THREE.BoxGeometry(singleWidth - 4, height, VM.objSingleLength - 10)//盒子模型 减 4是因为有间隙 4
       var material = new THREE.MeshPhysicalMaterial({
-        color:VM.deal_capacity_color(i),
-        emissive: '#000000',//底色
+        // color:VM.deal_capacity_color(i),
+        color: color,
+        emissive: "#000000",//底色
         roughness: 0.4,//光滑程度
         metalness: 0.1,//金属性贴图亮度
         reflectivity: 0.68,//发亮点大小
         transparent: false,
-        opacity:0.85
-      });//材料
-      var mesh = new THREE.Mesh( geometry, material );
-      mesh.position.x = x - VM.MmovL - 2;//这里减去自己的2分之一参考initObject中的位置设置 搜关键字  VM.cubeArry[iNum].x - movL  MmovL是个累加值
-      mesh.position.y = height / 2 + this.objCabinetBottomHeight;
-      mesh.position.z = z;
+        opacity: 0.85
+      })//材料
+      var mesh = new THREE.Mesh(geometry, material)
+      mesh.position.x = x - VM.MmovL - 2//这里减去自己的2分之一参考initObject中的位置设置 搜关键字  VM.cubeArry[iNum].x - movL  MmovL是个累加值
+      mesh.position.y = height / 2 + this.objCabinetBottomHeight
+      mesh.position.z = z
       // mesh.renderOrder = 1000;
       // mesh.material.depthTest = false;
-      VM.cubeArry[i].mesh = mesh;
-      VM.scene.add( mesh );
+      VM.cubeArry[i].mesh = mesh
+      // VM.mesh5[i] = mesh;
+      VM.scene.add(mesh)
     },
     /**
      *  温度柱图
      */
-    deal_capacity_temp_column: function (i,key) {
-      var temp_hot = this.cubeArry[i][key];
-      this.mesh3[i + key].material.map = this.initCabinetPercent(temp_hot,this.calc_cabinet_width(this.cubeArry[i]));//设备容量数值
-      temp_hot = this.check_value(temp_hot);
-      this.creat_capacity_temp_Mesh(this.new_calc_capacity_position1(temp_hot),i,temp_hot,key);//创建立体模型
+    deal_capacity_temp_column: function (i, key) {
+      var temp_hot = this.cubeArry[i][key]
+      // var old_temp_hot = this.cubeArry_old[i][key]//旧值
+      // if (temp_hot === old_temp_hot){
+      //   return
+      // }
+      this.mesh3[i + key].material.map = this.initCabinetPercent(temp_hot, this.calc_cabinet_width(this.cubeArry[i]))//设备容量数值
+      temp_hot = this.check_value(temp_hot)
+      this.creat_capacity_temp_Mesh(this.new_calc_capacity_position1(temp_hot), i, temp_hot, key)//创建立体模型
     },
     /*
     * 创建温度柱图的模型
     * 根据位置计算偏移量，
     *
     * */
-    creat_capacity_temp_Mesh:function(height,i,value,key){
-      var VM = this;
-      if (height === 0) {//如果是0 就不画了，再去清理一下之前创建过的
-        VM.clearCache(VM.cubeArry[i][key + 'mesh']);
+    creat_capacity_temp_Mesh: function (height, i, value, key) {
+      var VM = this
+      if (height === 0 && VM.mesh4[i + key + "_mesh"]) {//如果是0 就不画了，再去清理一下之前创建过的
+        VM.clearCache(VM.mesh4[i + key + "_mesh"])
         return
       }
-      var x = VM.cubeArry[i].x;
-      var z = VM.objSingleLength / 2;
-      var singleWidth = VM.calc_cabinet_width(VM.cubeArry[i]);
-      if (i % 2 === 0) {//偶数，后面一排
-        z = -z;
+      var visible//这里处理显示是因为若是选了某个通道情况下，机柜数值发生变化，会全部显示出来
+      if (VM.cap_temp_type < 0) {//显示全部
+        visible = true
+      } else {
+        // if (VM.cap_temp_type === 0){//显示前排
+        //   visible = i % 2 === 1
+        //   if (VM.cap_temp_view > 0 ){//选了某个通道
+        //     if (key === 'temp_hot'){//热通道
+        //       visible = i % 2 === 1 && VM.cap_temp_view === 1
+        //     }else{
+        //       visible = i % 2 === 1 && VM.cap_temp_view === 0
+        //     }
+        //   }
+        // }else{//显示后排
+        //   visible = i % 2 === 0
+        //   if (VM.cap_temp_view > 0 ){//选了某个通道
+        //     if (key === 'temp_hot'){//热通道
+        //       visible = i % 2 === 0 && VM.cap_temp_view === 1
+        //     }else{
+        //       visible = i % 2 === 0 && VM.cap_temp_view === 0
+        //     }
+        //   }
+        // }
+        if (VM.cap_temp_type === 0) {//热通道1
+          visible = i % 2 === 1 && key === "temp_hot"
+        } else if (VM.cap_temp_type === 1) {//冷通道1
+          visible = i % 2 === 1 && key === "temp_cold"
+        } else if (VM.cap_temp_type === 2) {//热通道2
+          visible = i % 2 === 0 && key === "temp_hot"
+        } else if (VM.cap_temp_type === 3) {//冷通道2
+          visible = i % 2 === 0 && key === "temp_cold"
+        }
       }
-      var geometry = new THREE.BoxGeometry(singleWidth - 4,height,VM.objSingleLength / 2 - 10);//盒子模型 减 4是因为有间隙 4
+
+      var x = VM.cubeArry[i].x
+      var z = VM.objSingleLength / 2
+      var singleWidth = VM.calc_cabinet_width(VM.cubeArry[i])
+      var color
+      if (i % 2 === 0) {//偶数，后面一排
+        z = -z
+        if (key === "temp_hot") {//热通道
+          color = "#83ff62"
+        } else {
+          color = "#4cbcff"
+        }
+      } else {
+        if (key === "temp_hot") {//热通道
+          color = "#ff8e52"
+        } else {
+          color = "#3cebff"
+        }
+      }
+      // if (value >= 90){//超过90设置为红色
+      //   color = "#e54545";
+      // }
+      var geometry = new THREE.BoxGeometry(singleWidth - 4, height, VM.objSingleLength / 2 - 10)//盒子模型 减 4是因为有间隙 4
       var material = new THREE.MeshPhysicalMaterial({
-        color:VM.deal_capacity_color(null,value),
-        emissive: '#000000',//底色
+        // color: VM.deal_capacity_color(null,value),
+        color: color,
+        emissive: "#000000",//底色
         roughness: 0.4,//光滑程度
         metalness: 0.1,//金属性贴图亮度
         reflectivity: 0.68,//发亮点大小
         transparent: false,
-        opacity:0.85,
+        opacity: 0.85,
         blendDstAlpha: 0.5
-      });//材料
-      var mesh = new THREE.Mesh( geometry, material );
-      mesh.position.x = x - VM.MmovL - 2;//这里减去自己的2分之一参考initObject中的位置设置 搜关键字  VM.cubeArry[iNum].x - movL  MmovL是个累加值
-      mesh.position.y = height / 2 + this.objCabinetBottomHeight;
-      mesh.position.z = z * (key === 'temp_hot' ? 2.5 : 1.5);
+      })//材料
+      var mesh = new THREE.Mesh(geometry, material)
+      mesh.position.x = x - VM.MmovL - 2//这里减去自己的2分之一参考initObject中的位置设置 搜关键字  VM.cubeArry[iNum].x - movL  MmovL是个累加值
+      mesh.position.y = height / 2 + this.objCabinetBottomHeight
+      mesh.position.z = z * (key === "temp_hot" ? 2.5 : 1.5)
+      mesh.visible = visible
       // mesh.renderOrder = 1000;
       // mesh.material.depthTest = false;
-      VM.clearCache(VM.cubeArry[i][key + 'mesh']);
-      VM.cubeArry[i][key + 'mesh'] = mesh;
-      VM.scene.add( mesh );
+      // VM.clearCache(VM.cubeArry[i][key + '_mesh']);
+      VM.clearCache(VM.mesh4[i + key + "_mesh"])
+      // VM.cubeArry[i][key + '_mesh'] = mesh;
+      VM.mesh4[i + key + "_mesh"] = mesh
+      if (height !== 0) {
+        VM.scene.add(mesh)
+      }
     },
 
     /*3个横切面测试使用*/
-    init_three_heat_map(){
-      var VM = this;
+    init_three_heat_map() {
+      var VM = this
       if (VM.isTransparent && VM.viewFlag === 1) {//云图视图
-        var cubeArrL = VM.cubeArry.length;
-        var width = VM.objLength + (VM.cubeArry[VM.cubeArry.length -1 ].width === 0 ? VM.objSingleWidth : 49); // 这里加的宽度要根据最后一个排机柜的宽度加
-        var height = VM.objAllCabinetWidth;//机柜两排，以及中间通道各为120
+        var cubeArrL = VM.cubeArry.length
+        var width = VM.objLength + (VM.cubeArry[VM.cubeArry.length - 1].width === 0 ? VM.objSingleWidth : 49) // 这里加的宽度要根据最后一个排机柜的宽度加
+        var height = VM.objAllCabinetWidth//机柜两排，以及中间通道各为120
 
         for (let i = 0; i < 3; i++) {
           VM.all_passageway_data[i + 101] = {};
@@ -3748,24 +3937,24 @@ export default {
           * 位置5：机柜下标为奇数的热通道温度值；
           * */
           var need_position = 1;
-          if (i === 0){//上
+          if (i === 0) {//上
             need_position = 1
-          }else if (i === 1){//中
+          } else if (i === 1) {//中
             need_position = 3
-          }else if (i === 2){//下
+          } else if (i === 2) {//下
             need_position = 5
           }
-          var all_hot_odd = VM.set_temp_data_type(VM.cal_heatmap_one_way_data(0, VM.key_way_hot),VM.key_hot);
-          var all_cold_odd = VM.set_temp_data_type(VM.cal_heatmap_one_way_data(0, VM.key_way_cold),VM.key_cold);
-          var all_cold_even = VM.set_temp_data_type(VM.cal_heatmap_one_way_data(1, VM.key_way_cold),VM.key_cold);
-          var all_hot_even = VM.set_temp_data_type(VM.cal_heatmap_one_way_data(1, VM.key_way_hot),VM.key_hot);
+          var all_hot_odd = VM.set_temp_data_type(VM.cal_heatmap_one_way_data(0, VM.key_way_hot), VM.key_hot);
+          var all_cold_odd = VM.set_temp_data_type(VM.cal_heatmap_one_way_data(0, VM.key_way_cold), VM.key_cold);
+          var all_cold_even = VM.set_temp_data_type(VM.cal_heatmap_one_way_data(1, VM.key_way_cold), VM.key_cold);
+          var all_hot_even = VM.set_temp_data_type(VM.cal_heatmap_one_way_data(1, VM.key_way_hot), VM.key_hot);
           var pos_data = {
-            pos_1:VM.cal_heatmap_one_position(all_hot_odd,need_position),//用作位置1的数据
-            pos_2:VM.cal_heatmap_one_position(all_cold_odd,need_position),//用作位置2的数据
-            pos_4:VM.cal_heatmap_one_position(all_cold_even,need_position),//用作位置4的数据
-            pos_5:VM.cal_heatmap_one_position(all_hot_even,need_position),//用作位置5的数据
+            pos_1: VM.cal_heatmap_one_position(all_hot_odd, need_position),//用作位置1的数据
+            pos_2: VM.cal_heatmap_one_position(all_cold_odd, need_position),//用作位置2的数据
+            pos_4: VM.cal_heatmap_one_position(all_cold_even, need_position),//用作位置4的数据
+            pos_5: VM.cal_heatmap_one_position(all_hot_even, need_position),//用作位置5的数据
           };
-          pos_data.pos_3 = VM.cal_heatmap_ave_position(pos_data.pos_2,pos_data.pos_4);
+          pos_data.pos_3 = VM.cal_heatmap_ave_position(pos_data.pos_2, pos_data.pos_4);
           for (let j = 0; j < cubeArrL / 2; j++) {
             var passageway_data = [];//俯视一列机柜的5个位置图
             for (let pos = 1; pos <= 5; pos++) {//五个位置的数据设置 组成第几排机柜的位置为pos的值
@@ -3773,42 +3962,44 @@ export default {
               current_data.position = pos;
               passageway_data.push(current_data);
             }
-            if (!ifNullData(passageway_data)){
+            if (!ifNullData(passageway_data)) {
               var jj = j * 2;//这里* 2 是为了保证计算机柜宽度的时候是以某一排为准，当前以偶数排为基准
               j_arr.push(jj);
-              if (!isEqual(VM.all_passageway_data[i + 101][jj],passageway_data)){
-              // if (!VM.Is_the_same_with_old_data(i + 101,jj,passageway_data)){
+              if (!isEqual(VM.all_passageway_data[i + 101][jj], passageway_data)) {
+                // if (!VM.Is_the_same_with_old_data(i + 101,jj,passageway_data)){
                 is_the_same = false
               }
               VM.all_passageway_data[i + 101][jj] = passageway_data;
               for (let k = 0; k < passageway_data.length; k++) {
-                var all_data = VM.cal_heatmap_data_position(width,height , cubeArrL, passageway_data[k], jj,k,j_arr.indexOf(jj));
+                var all_data = VM.cal_heatmap_data_position(width, height, cubeArrL, passageway_data[k], jj, k, j_arr.indexOf(jj));
                 data_max = Math.max(data_max, all_data.max);
-                data_arr = [...data_arr,...all_data.position_arr];
+                data_arr = [...data_arr, ...all_data.position_arr];
               }
             }
           }
-          if (is_the_same){//如果和旧数据一样，那就别渲染了
+          if (is_the_same) {//如果和旧数据一样，那就别渲染了
             continue
           }
           VM.filter_repeat_point(data_arr);
-          VM.init_three_mesh(width,height,data_arr,data_max,i);
+          VM.init_three_mesh(width, height, data_arr, data_max, i);
         }
       }
     },
-    init_three_mesh(width,height,data_arr,data_max,i){
+    init_three_mesh(width, height, data_arr, data_max, i) {
       var VM = this;
       var heatmapBase64 = VM.init_heatmap(width, height, data_arr, data_max, i + 101);//拿到base64的图片资源
       // VM.clearCache(VM.heatmap_map_three[i]);//对之前存在的对象也最好清除一下，待测试
       VM.heatmap_map_three[i] = VM.init_heatmap_canvas(width, height, heatmapBase64);
-      if (VM.heatmap_Mesh_three.length >= 3){//说明加载过了
-        VM.heatmap_Mesh_three[i].material.needsUpdate = true;//使纹理可以更新
-        VM.heatmap_Mesh_three[i].geometry.colorsNeedUpdate = true;//使颜色可以更新
-        VM.heatmap_Mesh_three[i].material.map.dispose();
-        setTimeout(()=>{
+      if (VM.heatmap_Mesh_three.length >= 3) {//说明加载过了
+        new Promise((resolve,rejected)=>{
+          VM.heatmap_Mesh_three[i].material.needsUpdate = true;//使纹理可以更新
+          VM.heatmap_Mesh_three[i].geometry.colorsNeedUpdate = true;//使颜色可以更新
+          VM.heatmap_Mesh_three[i].material.map.dispose();
+          resolve()
+        }).then(()=>{
           VM.heatmap_Mesh_three[i].material.map = VM.heatmap_map_three[i];
           VM.render_render();//注意，这里是云图刷新数据后不更新的主要问题，主动render一次
-        })
+        });
         return
       }
       var material = new THREE.MeshBasicMaterial({
@@ -3821,7 +4012,7 @@ export default {
       });
       var geometry = new THREE.PlaneGeometry(width, height);
       var heatmap_mesh = new THREE.Mesh(geometry, material);
-      heatmap_mesh.rotateX(- Math.PI / 2);//右手世界坐标定理
+      heatmap_mesh.rotateX(-Math.PI / 2);//右手世界坐标定理
       // heatmap_mesh.rotateZ(Math.PI / 2);
       var position = VM.calc_three_position(i);
       heatmap_mesh.position.set(position.x, position.y + 2, position.z);
@@ -3838,45 +4029,149 @@ export default {
       VM.heatmap_Mesh_three[i] = heatmap_mesh;//注意这里减一是因为之前的设定就是m是从1开始的，方便位置计算
       VM.scene.add(heatmap_mesh);
     },
-    change_heatmap_view(event){
-      var flag = $(event.target).val();
-      if (flag < 0){//显示全部
-        for (let i = 0; i < 3; i++) {
-          this.heatmap_Mesh_three[i].visible = true;
-        }
-      }else{
-        this.heatmap_Mesh_three[flag].visible = true;
-        for (let i = 0; i < 3; i++) {
-          if (i == flag) {
-            continue
+    change_heatmap_view(event, flag, key) {
+      event.stopPropagation()//事件阻止
+      var VM = this
+      // var flag = $(event.target).val() || value;
+      this[key] = flag
+      flag = Number(flag)
+      if (this.viewFlag === 1) {
+        if (this.heatmap_type < 0) {//三个平面
+          for (let i = 0; i < 3; i++) {
+            this.heatmap_Mesh_three[i].visible = flag < 0 || i === flag
           }
-          this.heatmap_Mesh_three[i].visible = false;
+        } else if (this.heatmap_type === 0) {//全景视图
+          let hide_position_list = []//需要隐藏的位置
+          if (flag >= 0) {//选了具体的哪一排
+            if (flag === 0) {//选了显示前排
+              hide_position_list = [3, 4, 11, 12, 13]//需要改动的mesh对象相对位置
+            } else {
+              hide_position_list = [1, 2, 5, 6, 7]//需要改动的mesh对象相对位置
+            }
+          }
+          this.heatmap_Mesh.forEach((item, index) => {
+            item.visible = hide_position_list.indexOf(index + 1) < 0
+          })
+        } else {//立面视图
+          const four_list = [1, 2, 3, 4]
+          this.heatmap_Mesh.forEach((item, index) => {
+            item.visible = (flag < 0 && four_list.indexOf(index + 1) >= 0) || index === flag
+          })
         }
+      } else if (this.viewFlag === 6) {
+        //暂时无用
+        let keys = Object.keys(this.mesh4)
+        keys.forEach((item, index) => {//温度柱图
+          if (index >= keys.length / 2) {
+            return false
+          }
+          if (flag === 1) {//热通道
+            if ((VM.cap_temp_type === 0 && index % 2 === 1) || (VM.cap_temp_type === 1 && index % 2 === 0)) {//前排机柜 后排机柜
+              VM.meshVisibleChange(VM.mesh3[index + "temp_hot"], true)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_hot_mesh"], true)
+            } else {
+              VM.meshVisibleChange(VM.mesh3[index + "temp_hot"], false)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_hot_mesh"], false)
+            }
+            VM.meshVisibleChange(VM.mesh3[index + "temp_cold"], false)
+            VM.meshVisibleChange(VM.mesh4[index + "temp_cold_mesh"], false)
+          } else {//冷通道
+            if ((VM.cap_temp_type === 0 && index % 2 === 1) || (VM.cap_temp_type === 1 && index % 2 === 0)) {//前排机柜 后排机柜
+              VM.meshVisibleChange(VM.mesh3[index + "temp_cold"], true)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_cold_mesh"], true)
+            } else {
+              VM.meshVisibleChange(VM.mesh3[index + "temp_cold"], false)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_cold_mesh"], false)
+            }
+            VM.meshVisibleChange(VM.mesh3[index + "temp_hot"], false)
+            VM.meshVisibleChange(VM.mesh4[index + "temp_hot_mesh"], false)
+          }
+        })
       }
-      this.$nextTick(()=>{
-        this.animation();
-      });
+      this.$nextTick(() => {
+        VM.render_render()
+      })
     },
-    change_heatmap_view1(event){
-      var flag = $(event.target).val();
-      var threeD_show = true;
-      if (flag == 1){//切换成了三个屏幕
-        threeD_show = false;
-      } else {
-        this.heatmap_view = -1;//这里重置一下上中下选项问题
-        threeD_show = true;
-      }
-      for (let i = 0; i < 3; i++) {
-        if (this.heatmap_Mesh_three[i]){
-          this.heatmap_Mesh_three[i].visible = !threeD_show;
+    change_heatmap_view1(flag, key) {
+      // var flag = $(event.target).val();
+      var VM = this
+      var threeD_show = true//是否显示3D
+      this.threeD_chose_menu.map(item => {
+        if (item.value === flag && item.children) {
+          item.showChildren = !item.showChildren
+        } else {
+          item.showChildren = false
         }
+      })
+      this[key] = flag
+      this.heatmap_view = -1//这里重置一下上中下选项问题
+      this.heatmap_view1 = -1//这里重置一下上中下选项问题
+      this.heatmap_view2 = -1//这里重置一下上中下选项问题
+      this.cap_temp_view = -1//这里重置一下冷热通道选项问题
+      threeD_show = flag < 0
+      if (this.viewFlag === 1) {//温度云图菜单切换
+        for (let i = 0; i < 3; i++) {
+          if (this.heatmap_Mesh_three[i]) {
+            this.heatmap_Mesh_three[i].visible = threeD_show
+          }
+        }
+        this.heatmap_Mesh.forEach((item, index) => {
+          if (flag === 1) {//立面视图,前面四个面
+            item.visible = index < 4
+          } else {
+            item.visible = !threeD_show
+          }
+        })
+      } else if (this.viewFlag === 6) {//温度柱图菜单切换
+        let keys = Object.keys(this.mesh4)
+        keys.forEach((item, index) => {//温度柱图
+          if (index >= keys.length / 2) {
+            return false
+          }
+          if (flag < 0) {
+            VM.meshVisibleChange(VM.mesh3[index + "temp_hot"], true)
+            VM.meshVisibleChange(VM.mesh3[index + "temp_cold"], true)
+            VM.meshVisibleChange(VM.mesh4[index + "temp_hot_mesh"], true)
+            VM.meshVisibleChange(VM.mesh4[index + "temp_cold_mesh"], true)
+          } else {
+            if (flag === 0) {//热通道1
+              VM.meshVisibleChange(VM.mesh3[index + "temp_hot"], index % 2 === 1)
+              VM.meshVisibleChange(VM.mesh3[index + "temp_cold"], false)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_hot_mesh"], index % 2 === 1)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_cold_mesh"], false)
+            } else if (flag === 1) {//冷通道1
+              VM.meshVisibleChange(VM.mesh3[index + "temp_hot"], false)
+              VM.meshVisibleChange(VM.mesh3[index + "temp_cold"], index % 2 === 1)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_hot_mesh"], false)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_cold_mesh"], index % 2 === 1)
+            } else if (flag === 2) {//热通道2
+              VM.meshVisibleChange(VM.mesh3[index + "temp_hot"], index % 2 === 0)
+              VM.meshVisibleChange(VM.mesh3[index + "temp_cold"], false)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_hot_mesh"], index % 2 === 0)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_cold_mesh"], false)
+            } else if (flag === 3) {//冷通道2
+              VM.meshVisibleChange(VM.mesh3[index + "temp_hot"], false)
+              VM.meshVisibleChange(VM.mesh3[index + "temp_cold"], index % 2 === 0)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_hot_mesh"], false)
+              VM.meshVisibleChange(VM.mesh4[index + "temp_cold_mesh"], index % 2 === 0)
+            }
+          }
+          // if ((flag === 0 && index % 2 === 1) || (flag === 1 && index % 2 === 0)){//前面一排，后面一排
+          //   VM.mesh3[index + 'temp_hot'].visible = true;
+          //   VM.mesh3[index + 'temp_cold'].visible = true;
+          //   VM.mesh4[index + 'temp_hot_mesh'].visible = true;
+          //   VM.mesh4[index + 'temp_cold_mesh'].visible = true;
+          // }else{
+          //   VM.mesh3[index + 'temp_hot'].visible = false;
+          //   VM.mesh3[index + 'temp_cold'].visible = false;
+          //   VM.mesh4[index + 'temp_hot_mesh'].visible = false;
+          //   VM.mesh4[index + 'temp_cold_mesh'].visible = false;
+          // }
+        })
       }
-      this.heatmap_Mesh.forEach((item,index)=>{
-        item.visible = threeD_show
-      });
-      this.$nextTick(()=>{
-        this.animation();
-      });
+      this.$nextTick(() => {
+        VM.render_render()
+      })
     },
     /*
     * 3个平面位置计算
@@ -3884,7 +4179,7 @@ export default {
     * 2：顶部，x:0，y机柜的高度一半，z:0
     * 3：顶部，x:0，y：0，z:0
     * */
-    calc_three_position(i){
+    calc_three_position(i) {
       var height = this.objHeight + this.objSmallHeight;//机柜的整体高度
       var position_obj = {x: 0, y: height / 2, z: 0};
       switch (Number(i)) {
@@ -3901,12 +4196,12 @@ export default {
     },
 
 
-    check_value(value){
-      if (ifNullData(value)){
+    check_value(value) {
+      if (ifNullData(value)) {
         return 0;
       } else if (value > 100) {
         return 100
-      } else{
+      } else {
         return value
       }
     },
@@ -3914,9 +4209,10 @@ export default {
     * 计算柱状图高度
     * */
     new_calc_capacity_position1: function (per) {
-      return this.objCabinetHeight / 100 * Math.abs(per);
+      // return this.objCabinetHeight / 100 * Math.abs(per);
+      return this.objCabinetHeight / 100 * per
     },
-    calc_cabinet_width(data){
+    calc_cabinet_width(data) {
       var width = data.width;
       if (width == 1) { //0 全柜  1 半柜
         return this.objSingleHalfWidth;
@@ -3924,20 +4220,20 @@ export default {
         return this.objSingleWidth;
       }
     },
-    initMouseClick:function(){
+    initMouseClick: function () {
       var VM = this;
       // document.addEventListener('mousemove', function(){
       //   event.preventDefault();
       //   VM.MOUSE.x = (event.clientX / window.innerWidth) * 2 - 1;
       //   VM.MOUSE.y = -(event.clientY / window.innerHeight) * 2 + 1;
       // }, false);
-      window.addEventListener( 'click', VM.dev_click_fun(), false );
+      window.addEventListener('click', VM.dev_click_fun(), false);
     },
     /*
         添加光投射器 及 鼠标二维向量 用于捕获鼠标移入物体
         下次渲染时，通过mouse对于的二维向量判断是否经过指定物体
     */
-    renderRaycasterObj: function() {
+    renderRaycasterObj: function () {
       var VM = this;
       VM.RAYCASTER = new THREE.Raycaster();//光线投射器
       VM.MOUSE = new THREE.Vector2();//二维向量
@@ -3947,7 +4243,7 @@ export default {
         var currentProjectiveObjT = intersects[0].object;
         if (VM.projectiveObj != currentProjectiveObjT) {
 
-          if((currentProjectiveObjT instanceof THREE.AxesHelper)){
+          if ((currentProjectiveObjT instanceof THREE.AxesHelper)) {
             //穿过的是坐标轴线和网格线
             return;
           }
@@ -3959,21 +4255,21 @@ export default {
         VM.projectiveObj = null;
       }
     },
-    dev_click_fun:function(){
+    dev_click_fun: function () {
       var VM = this;
-      if(VM.projectiveObj){
+      if (VM.projectiveObj) {
         console.log(VM.projectiveObj);
-        if(VM.projectiveObj.hasChecked){
+        if (VM.projectiveObj.hasChecked) {
           VM.projectiveObj.hasChecked = false;
           VM.projectiveObj.material.color.set("gray");
-        }else{
+        } else {
           VM.projectiveObj.hasChecked = true;
           VM.projectiveObj.material.color.set("#dd830d");
         }
       }
     },
-    /*提前加载一些材料*/
-    loadMaterial(loadList){
+    // 提前加载一些材料 贴图使用
+    loadMaterial(loadList) {
       var VM = this;
       var basePath = '/static/models/';
       var Loader = {
@@ -3981,123 +4277,154 @@ export default {
         OBJLoader: new OBJLoader(),
         TextureLoader: new THREE.TextureLoader(),
       };
-      loadList.forEach((MTL,index)=>{
+      loadList.forEach((MTL, index) => {
         Loader[MTL.loader].setPath(basePath);
-        if(MTL.mtl && VM[MTL.mtl]){
+        if (MTL.mtl && VM[MTL.mtl]) {
           Loader[MTL.loader].setMaterials(VM[MTL.mtl]);
         }
-        Loader[MTL.loader].load(MTL.name,function (material) {
+        Loader[MTL.loader].load(MTL.name, (material) => {
+          if (MTL.children) {// 有子集
+            material.preload();
+          }
           VM[MTL.data_name] = material;
-            if (MTL.children){
-              VM.loadMaterial(MTL.children)
-            }
+          if (MTL.children) {
+            VM.loadMaterial(MTL.children)
+          }
           VM.Loadover--;
         }, VM.onProgress, VM.onError);
+      })
+    },
+    // 加载材质
+    loadMaterialNew(loader) {
+      const VM = this;
+      var mtlLoader = new MTLLoader();
+      mtlLoader.setPath(VM.basicURL);
+      return new Promise((resolve, reject) => {
+        mtlLoader.load(loader.name, (materials) => {//普通机柜
+          materials.preload();
+          VM[loader.data_name] = materials;
+          resolve()
+        });
+        mtlLoader = null;
+      })
+    },
+    // 加载对象
+    loadObjectNew(loader) {
+      const VM = this;
+      var objLoader = new OBJLoader();
+      objLoader.setMaterials(VM[loader.data_name]);
+      objLoader.setPath(VM.basicURL);
+      return new Promise((resolve, reject) => {
+        objLoader.load(loader.children.name, (oo) => {
+          VM[loader.children.data_name] = oo;
+          resolve()
+        }, VM.onProgress, VM.onError);
+        objLoader = null;
       })
     },
     onProgress(xhr) {
     },
     onError(xhr) {
     },
-    set_line_geometry(group,vector={x:0,y:0,z:0},color=0x0096FF){
-      var VM = this;
-      if (group instanceof THREE.Group && !ifNullData(group.children)){
-        for (let i = 0; i <group.children.length; i++) {
+    set_line_geometry(group, vector = {x: 0, y: 0, z: 0}, color = 0x0096FF) {
+      var VM = this
+      if (group instanceof THREE.Group && !ifNullData(group.children)) {
+        for (let i = 0; i < group.children.length; i++) {
           // var edges = new THREE.EdgesHelper( group.children[i], 0x0096FF );
-          var line = new THREE.LineSegments( new THREE.EdgesGeometry( group.children[i].geometry ), new THREE.LineBasicMaterial( { color: color } ));
-          line.position.set(vector.x, vector.y, vector.z);
-          VM.scene.add( line );
+          var line = new THREE.LineSegments(new THREE.EdgesGeometry(group.children[i].geometry), new THREE.LineBasicMaterial({color: color}))
+          line.position.set(vector.x, vector.y, vector.z)
+          VM.scene.add(line)
         }
       }
     },
     //筛选特别相近的点
-    filter_repeat_point(data_arr){
+    filter_repeat_point(data_arr) {
       var VM = this;
       var per = VM.limit_per;
       var need_splice = new Set();//需要删掉的
       for (let i = data_arr.length - 1; i >= 0; i--) {
-        for (let j = data_arr.length - 1; j >= 0; j --) {
+        for (let j = data_arr.length - 1; j >= 0; j--) {
           //两个点如果x轴与y轴 都过近,就删掉这个点
-          if (i === j){//屏蔽自己
+          if (i === j) {//屏蔽自己
             continue
           }
           if (Math.abs(data_arr[i].x - data_arr[j].x) <= per && Math.abs(data_arr[i].y - data_arr[j].y) <= per
             && !data_arr[j].root && !data_arr[j].baseroot // 针对与原始数据不能删除
-          ){
+          ) {
             need_splice.add(j)
           }
         }
       }
-      need_splice.forEach((item,index)=>{
-        data_arr.splice(item,1);
+      need_splice.forEach((item, index) => {
+        data_arr.splice(item, 1);
       })
     },
     //对比旧数据，如果没变化，就不用重新渲染了 ,true 不需要重新渲染，false 需要渲染
     /**
      * @return {boolean}
      */
-    Is_the_same_with_old_data(m,n,data){
+    Is_the_same_with_old_data(m, n, data) {
       var VM = this;
       var is_the_same = true;
       var compare_data = VM.all_passageway_data[m];
-      if (!ifNullData(n)){
+      if (!ifNullData(n)) {
         compare_data = compare_data[n];
       }
-      if (ifNullData(compare_data)){//表示第一次渲染
+      if (ifNullData(compare_data)) {//表示第一次渲染
         return !is_the_same
       }
-      VM.sort_fun(data,'position');
-      VM.sort_fun(compare_data,'position');
-      $.each(compare_data,(key,value)=>{
-        if(value.temp !== data[key].temp){//只要有一个不一样的值，就去重新渲染
+      VM.sort_fun(data, 'position');
+      VM.sort_fun(compare_data, 'position');
+      $.each(compare_data, (key, value) => {
+        if (value.temp !== data[key].temp) {//只要有一个不一样的值，就去重新渲染
           is_the_same = false;
           return false
         }
       })
       return is_the_same
     },
-    sort_fun(data,key){
+    sort_fun(data, key) {
       data.sort(function (a, b) {
         return a[key] - b[key]
       });
     },
-    get_min_max_data(data,key1,key2,isMax){
+    get_min_max_data(data, key1, key2, isMax) {
       var min;
-      $.each(data,(key,value)=>{
-        $.each(value[key2],(kk,vv)=>{
+      $.each(data, (key, value) => {
+        $.each(value[key2], (kk, vv) => {
           if (!min) {
             min = vv.temp;
           }
-          if (isMax){//取最大值
+          if (isMax) {//取最大值
             min = Math.max(min, vv.temp);
-          }else{
+          } else {
             min = Math.min(min, vv.temp);
           }
         })
       })
       return min
     },
-    initCameraDev(){
+    initCameraDev() {
       var VM = this;
       if (VM.isTransparent && VM.viewFlag === 3) {//安防视图
         var pos_list = Object.keys(VM.camera_dev_group);//之前已经加载过的位置
         //根据设备类型判断所要载入的模型
         //old_temp_camera_Obj
-        if (isEqual(VM.temp_camera_list,VM.old_temp_camera_list)){//新旧数据一样，不重新刷新
+        if (isEqual(VM.temp_camera_list, VM.old_temp_camera_list)) {//新旧数据一样，不重新刷新
           return
         }
-        if (ifNullData(VM.old_temp_camera_list)){//首次加载的数据，保存一下旧数据
+        if (ifNullData(VM.old_temp_camera_list)) {//首次加载的数据，保存一下旧数据
           VM.old_temp_camera_list = VM.temp_camera_list;
         }
-        if (VM.temp_camera_list.length === 0){//全部删除或者没有数据的时候
+        if (VM.temp_camera_list.length === 0) {//全部删除或者没有数据的时候
           for (let j = 0; j < pos_list.length; j++) {
             VM.clearCache(VM.camera_dev_group[pos_list[j]]);//删除已经删除的摄像头位置
           }
         }
-        VM.temp_camera_list.forEach((item,index)=>{
+        VM.temp_camera_list.forEach((item, index) => {
           var type_f = item.type_f;
           var isRotate = false;
-          if (VM.is_camera(item.dev_type)&& type_f) {//枪型摄像头，在数组中特殊设置为2，不能影响传值
+          if (VM.is_camera(item.dev_type) && type_f) {//枪型摄像头，在数组中特殊设置为2，不能影响传值
             type_f = 2;
             isRotate = item.pos_id <= 5;
           }
@@ -4105,7 +4432,7 @@ export default {
           if (!dev_model_name) {//如果在预设的类型中没有对应类型，不加载
             return
           }
-          if (!isEqual(VM.old_temp_camera_Obj[item.pos_id],item)){//若是数据不一样
+          if (!isEqual(VM.old_temp_camera_Obj[item.pos_id], item)) {//若是数据不一样
             VM.clearCache(VM.camera_dev_group[item.pos_id]);//删掉之前已经加载的模型，重新创建
             var half_rr = VM.cal_model_length_unit(VM.cubeArry[VM.cubeArry.length - 1]);//机柜一半的宽度
             var oo_position = VM.cal_dev_camera_position(VM.objLength, half_rr, item.pos_id);
@@ -4117,7 +4444,7 @@ export default {
               objLoader.setMaterials(materials);
               objLoader.setPath(VM.basicURL);
               objLoader.load(dev_model_name + '.obj', function (oo) {
-                VM.setObjMeshAttr(oo,['userData','name'],[item,VM.cameraDev_ + item.pos_id]);//遍历每一个mesh对象加上一些属性
+                VM.setObjMeshAttr(oo, ['userData', 'name'], [item, VM.cameraDev_ + item.pos_id]);//遍历每一个mesh对象加上一些属性
                 // oo.userData.data = item;
                 if (item.is_alarm !== 0) {//如果设备告警了
                   VM.changeDevMaterial(oo);
@@ -4142,8 +4469,8 @@ export default {
             mtlLoader = null;
           }
           VM.old_temp_camera_Obj[item.pos_id] = item;//设置一下旧值
-          pos_list.splice(pos_list.indexOf(item.pos_id.toString()),1)//删掉当前在的设备
-          if(index === VM.temp_camera_list.length - 1){//最后一个了
+          pos_list.splice(pos_list.indexOf(item.pos_id.toString()), 1)//删掉当前在的设备
+          if (index === VM.temp_camera_list.length - 1) {//最后一个了
             for (let j = 0; j < pos_list.length; j++) {
               VM.clearCache(VM.camera_dev_group[pos_list[j]]);//删除已经删除的摄像头位置
             }
@@ -4151,95 +4478,646 @@ export default {
         })
       }
     },
-    deal_dev_status(status){
-      return status === 0 ? '正常': '异常'
+    deal_dev_status(status) {
+      return status === 0 ? "正常" : "异常"
     },
-    is_camera(dev_type){
+    is_camera(dev_type) {
       return dev_type === 15 || dev_type === 26
     },
     //关闭弹窗，请勿删除
     close_event1() {
       if (this.$refs.myVideo) {
-        this.$refs.myVideo.close_videomap();
+        this.$refs.myVideo.close_videomap()
       }
     },
-    OrbitControlsChange(event){
+    /**
+     * 旋转事件的监听
+     * @param event
+     * @constructor
+     * @author zhoujinzong
+     * 相机视角监听，分3个部分做监听，正面：背面通道模型颜色透明度降低,背面：正面通道模型颜色透明度降低，其他：通道颜色透明度不变
+     */
+    OrbitControlsChange(event) {
       //this.reset_position ,初始位置
-      if (event.target){
-        const camera = event.target.object;
-        const  position = camera.position;
+      let camera = (event && event.target) ? event.target.object : {}
+      let position = camera.position
+      if (this.viewFlag === 1) {//温度云图
+        if (this.heatmap_type === 0) {//机柜云图
+          // this.temp_position_change(position,this.heatmap_Mesh);
+        } else {//3个平面
+        }
+      } else if (this.viewFlag === 2) {//容量云图
+        //VM.cubeArry[i].mesh
+        // this.capacity_position_change(position,this.cubeArry);
+      } else if (this.viewFlag === 6) {//温度柱图
+        //VM.cubeArry[i][key + '_mesh']
+        // this.capacity_position_change(position,this.mesh4,true);
+      }
+      this.isControlsChange = true;
+      this.devShow = false;
+      this.render_render()
+    },
+    /**
+     * 视角变化的判断函数之温度云图
+     * @param position 当前相机位置
+     * @param mesh_list 需要调整的mesh对象
+     * @author zhoujinzong
+     */
+    temp_position_change(position, mesh_list) {
+      let position_list = [1, 2, 3, 4, 5, 6, 7, 11, 12, 13]//当前是哪几个面
+      let opacity = this.hide_opacity
+      if (position && position.z > 0 && position.z > this.reset_position.z / 2 && position.y > this.reset_position.y / 2) {//正面 超过正z轴的一半 超过正y轴的一半
+        position_list = [3, 4, 11, 12, 13]//需要改动的mesh对象为相对位置的
+      } else if (position && position.z < 0 && position.z < this.reset_position.z / 2 && position.y > this.reset_position.y / 2) {//背面 超过负z轴的一半  超过正y轴的一半
+        position_list = [1, 2, 5, 6, 7]//需要改动的mesh对象为相对位置的
+      } else {//其他转向
+        opacity = this.show_opacity
+      }
+      position_list.forEach((pos, index) => {
+        if (mesh_list[pos - 1] && mesh_list[pos - 1].material) {
+          mesh_list[pos - 1].material.opacity = opacity
+        }
+      })
+    },
+    /**
+     * 视角变化的判断函数之容量云图与容量柱图  透明度或许不适用于这俩模型
+     * @param position 当前相机位置
+     * @param mesh_list 需要调整的mesh对象
+     * @param is_ca_per 是否是容量柱图
+     * @author zhoujinzong
+     */
+    capacity_position_change(position, mesh_list, is_ca_per) {
+      let index_list = Object.keys(this.cubeArry)//下标列表
+      let visible = false
+      if (position && position.z > 0 && position.z > this.reset_position.z / 2 && position.y > this.reset_position.y / 2) {//正面 超过正z轴的一半 超过正y轴的一半
+        index_list = index_list.filter(item => item % 2 === 1)//去掉正面 单数
+      } else if (position && position.z < 0 && position.z < this.reset_position.z / 2 && position.y > this.reset_position.y / 2) {//背面 超过负z轴的一半  超过正y轴的一半
+        index_list = index_list.filter(item => item % 2 === 0)//去掉背面 双数
+      } else {//其他面
+        visible = true
+      }
+      if (is_ca_per) {
+        let hot = "temp_hot_mesh"
+        let cold = "temp_cold_mesh"
+        index_list.forEach((i, index) => {
+          if (mesh_list[i + hot] && mesh_list[i + hot].material) {
+            mesh_list[i + hot].material.visible = visible
+          }
+          if (mesh_list[i + cold] && mesh_list[i + cold].material) {
+            mesh_list[i + cold].material.visible = visible
+          }
+        })
+      } else {
+        index_list.forEach((i, index) => {
+          if (mesh_list[i] && mesh_list[i].mesh && mesh_list[i].mesh.material) {
+            mesh_list[i].mesh.material.visible = visible
+          }
+        })
+      }
+    },
+    /**
+     * 防抖函数
+     * @param fn 超时结束之后需要执行的函数
+     * @param wait 超时时间 毫秒
+     * @returns {function(...[*]=)}
+     * @author zhoujinzong
+     */
+    debounce(fn, wait) {
+      let timeout = null
+      return function () {
+        if (timeout !== null) {
+          clearTimeout(timeout)
+        }
+        timeout = setTimeout(fn, wait)
+      }
+    },
+    changeView(flag, type) {
+      let VM = this
+
+      function change() {
+        VM.changeViewFun(VM.curr_view, VM.curr_type)
+      }
+
+      if (!VM.func) {
+        VM.func = VM.debounce(change, 500)
+      }
+      VM.curr_view = flag
+      VM.curr_type = type
+      VM.func()
+    },
+    show_threeD_chose_menu(event) {
+      let offsetTop = $('#main_model').offset().top;
+      this.threeD_chose_menu_position = {
+        x: event.offsetX + 30 || this.getScreenClickPoint(event, 'pageX') + 30,
+        y: event.offsetY + offsetTop || this.getScreenClickPoint(event, 'pageY')
+      }
+      this.threeD_chose_menu_show = true
+    },
+    show_false() {
+      this.threeD_chose_menu_show = false
+    },
+    threeD_chose_menu_chose_judge(key, value) {
+      return this[key] === value
+    },
+    /* 窗口变动触发的方法 */
+    onWindowResize() {
+      if (this.CAMERA) {
+        // 重新设置相机的宽高比
+        this.CAMERA.aspect = $("#main_model")
+          .width() / $("#main_model")
+          .height()
+        // 更新相机投影矩阵
+        this.CAMERA.updateProjectionMatrix()
+      }
+      if (this.renderer) {
+        // 更新渲染器大小
+        this.renderer.setSize($("#main_model")
+          .width(), $("#main_model")
+          .height())
       }
       this.render_render()
     },
-    //防抖函数
-    debounce(fn, wait) {
-      let timeout = null;
-      return function() {
-        if(timeout !== null)   clearTimeout(timeout);
-        timeout = setTimeout(fn, wait);
+    meshVisibleChange(mesh, boo) {
+      if (mesh) {
+        mesh.visible = boo
       }
     },
-    changeView(flag,type){
-      let VM = this;
-      function change() {
-        VM.changeViewFun(VM.curr_view,VM.curr_type)
+    setNormalTemp(new_passageway_data) {
+      for (let j = 0; j < new_passageway_data.length; j++) {
+        new_passageway_data[j].temp = 18
       }
-      if (!VM.func){
-        VM.func = VM.debounce(change,500);
+    },
+    /**
+     * 找到那个唯一的模型
+     * @param theOne
+     * @param intersects
+     * @param INTERSECTED
+     */
+    findClickTheOne(theOne, intersects, INTERSECTED) {
+      let newTheOne = intersects.find((item, index) => {
+        return item.object.name.indexOf(this.theOneObj) >= 0
+      })
+      if (newTheOne) {// 有找到就替换一下
+        INTERSECTED = newTheOne.object
+        theOne = newTheOne
       }
-      VM.curr_view = flag;
-      VM.curr_type = type;
-      VM.func();
+      return {theOne: theOne, INTERSECTED: INTERSECTED}
+    },
+    /**
+     * 获取屏幕点击的位置信息
+     * @param event 当前的点击事件
+     * @param key 要取的属性值，比如pageX clientX
+     */
+    getScreenClickPoint(event, key) {
+      return event.changedTouches[0] && event.changedTouches[0][key]
+    },
+    //加载普通机柜
+    loadNormalCabinet() {
+      const VM = this;
+      console.time("modeltime");
+      var mtlLoader = new MTLLoader();
+      mtlLoader.setPath(VM.basicURL);
+      mtlLoader.load('jg_02.mtl', function (materials) {//普通机柜
+        materials.preload();
+        var objLoader = new OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.setPath(VM.basicURL);
+        objLoader.load('jg_02.obj', function (oo) {
+          if (!VM.is_qt) {
+            VM.changeMaterial(oo);
+          }
+          var objLengh = 0;
+          for (var i = 0; i < VM.cubeArry.length; i++) {
+            objLengh = objLengh + VM.cal_model_length(i);
+
+            VM.cubeArry[i]['x'] = objLengh;
+            VM.cubeArry[i + 1]['x'] = objLengh;
+            if (VM.cubeArry[i].width !== 1) {
+              var obj_clone_normal = oo.clone();
+              var Jigui_01_normal = obj_clone_normal.getObjectByName('Jigui_01');
+              var Jigui_02_normal = obj_clone_normal.getObjectByName('Jigui_02');
+              VM.cube[i] = Jigui_01_normal;
+              VM.cube[i + 1] = Jigui_02_normal;
+              obj_clone_normal.position.set(objLengh, 0, 0);
+              VM.objGroup.add(obj_clone_normal);
+              // VM.set_line_geometry(obj_clone,{x:objLengh - VM.half_ll - VM.objSingleWidth ,y:0,z:0})
+            }
+            i++;//这个很重要，不然会重读计算
+          }
+          VM.objLength = objLengh;
+          oo = null;
+          VM.loadDoorFront();
+        }, VM.onProgress, VM.onError);
+        materials = null;
+        objLoader = null;
+      });
+      mtlLoader = null;
+    },
+    //加载前门
+    loadDoorFront() {
+      const VM = this;
+      //前门
+      //找一下logo  Kehua_logo_02
+      var mtlLoader_door0 = new MTLLoader();
+      mtlLoader_door0.setPath(VM.basicURL);
+      mtlLoader_door0.load('men_01.mtl', function (materials) {
+        materials.preload();
+        var objLoader = new OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.setPath(VM.basicURL);
+        objLoader.load('men_01.obj', function (oo) {
+          let obj_clone_front = oo.clone();
+          if (!VM.is_qt) {
+            VM.changeMaterial(obj_clone_front);
+            VM.changeDevMaterialOpacity(obj_clone_front, 'Kehua_logo_02', {isTransparent: true});//logo
+            VM.changeDevMaterialOpacity(obj_clone_front, 'boli_01', {isTransparent: true, viewFlag: 1});//玻璃
+            VM.changeDevMaterialOpacity(obj_clone_front, 'boli_02', {isTransparent: true, viewFlag: 1});//玻璃
+            VM.changeDevMaterialOpacity(obj_clone_front, 'Rectangle058', {isTransparent: true, viewFlag: 1});//门框四周
+            VM.changeDevMaterialOpacity(obj_clone_front, 'Box314', {isTransparent: true, viewFlag: 1});//门框上面
+            VM.changeDevMaterialOpacity(obj_clone_front, 'Box345', {isTransparent: true, viewFlag: 1});//门框底部
+            VM.changeDevMaterialOpacity(obj_clone_front, 'Box342', {isTransparent: true, viewFlag: 1});//门框上面靠里
+          }
+          obj_clone_front.position.set(0 - VM.objLength / 2 - VM.half_ll - 9, 0, 0);
+          // if (VM.viewFlag !== 1 && VM.viewFlag !== 2) {
+          // if (VM.viewFlag !== 1) {
+          VM.scene.add(obj_clone_front);
+          // VM.set_line_geometry(oo,{x:0 - objLengh / 2 - VM.half_ll - 9,y:0,z:0});
+          // }
+          VM.Loadover--;
+          oo = null;
+          VM.loadDoorBack();
+        }, VM.onProgress, VM.onError);
+        materials = null;
+        objLoader = null
+      });
+      mtlLoader_door0 = null
+    },
+    //加载后门
+    loadDoorBack() {
+      const VM = this;
+      //后门
+      //找一下logo  Kehua_logo_01
+      var mtlLoader_door1 = new MTLLoader();
+      mtlLoader_door1.setPath(VM.basicURL);
+      mtlLoader_door1.load('men_02.mtl', function (materials) {
+        materials.preload();
+        var objLoader = new OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.setPath(VM.basicURL);
+        objLoader.load('men_02.obj', function (oo) {
+          let obj_clone_back = oo.clone();
+          if (!VM.is_qt) {
+            VM.changeMaterial(obj_clone_back);
+            VM.changeDevMaterialOpacity(obj_clone_back, 'Kehua_logo_01', {isTransparent: true});
+            VM.changeDevMaterialOpacity(obj_clone_back, 'boli_01', {isTransparent: true, viewFlag: 1});//玻璃
+            VM.changeDevMaterialOpacity(obj_clone_back, 'boli_02', {isTransparent: true, viewFlag: 1});//玻璃
+            VM.changeDevMaterialOpacity(obj_clone_back, 'Rectangle028', {isTransparent: true, viewFlag: 1});//门框四周
+            VM.changeDevMaterialOpacity(obj_clone_back, 'Box021', {isTransparent: true, viewFlag: 1});//门框上面
+            VM.changeDevMaterialOpacity(obj_clone_back, 'Box280', {isTransparent: true, viewFlag: 1});//门框底部
+            VM.changeDevMaterialOpacity(obj_clone_back, 'Box066', {isTransparent: true, viewFlag: 1});//门框上面靠里
+          }
+          obj_clone_back.position.set(VM.objLength / 2 + VM.half_rr + 9, 0, 0);
+          // if (VM.viewFlag !== 1 && VM.viewFlag !== 2) {
+          // if (VM.viewFlag !== 1) {
+          VM.scene.add(obj_clone_back);
+          // VM.set_line_geometry(oo,{x:objLengh / 2 + VM.half_rr + 9,y:0,z:0});
+          // }
+          VM.Loadover--;
+          oo = null;
+          VM.loadCabinetAir();
+        }, VM.onProgress, VM.onError);
+        materials = null;
+        objLoader = null
+      });
+      mtlLoader_door1 = null
+    },
+    // 加载空调
+    loadCabinetAir() {
+      const VM = this;
+      //空调
+      var mtlLoader_air = new MTLLoader();
+      mtlLoader_air.setPath(VM.basicURL);
+      mtlLoader_air.load('jg_03.mtl', function (materials) {
+        materials.preload();
+        var objLoader = new OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.setPath(VM.basicURL);
+        objLoader.load('jg_03.obj', function (oo) {
+          let obj_jg_03 = oo.clone();
+          var objLengh_air = 0;
+          if (!VM.is_qt) {
+            VM.changeMaterial(obj_jg_03);
+          }
+          for (var i = 0; i < VM.cubeArry.length; i++) {
+            objLengh_air = objLengh_air + VM.cal_model_length(i);
+            if (VM.cubeArry[i].width === 1) {//两排只要有一个是空调柜,另一个一定是空调柜
+              var obj_clone_air = obj_jg_03.clone();
+
+              var Jigui_01_air = obj_clone_air.getObjectByName('Jigui_01');
+              var Jigui_02_air = obj_clone_air.getObjectByName('Jigui_02');
+              if (VM.viewFlag === 2) {
+                // Jigui_01.scale.set(1,VM.objCabinetHeightCoe,1);//将模型进行一个拉伸
+                // Jigui_02.scale.set(1,VM.objCabinetHeightCoe,1);//将模型进行一个拉伸
+                // VM.changeDevMaterialOpacity(obj_clone,'Box001');//机柜底座
+              }
+              VM.cube[i] = Jigui_01_air;
+              VM.cube[i + 1] = Jigui_02_air;
+              obj_clone_air.position.set(objLengh_air, 0, 0);
+              VM.objGroup.add(obj_clone_air);
+              // VM.set_line_geometry(obj_clone,{x:objLengh_air,y:0,z:0});
+            }
+            i++;
+          }
+          VM.objLengh_air = objLengh_air;
+          VM.objGroup.position.set(0 - objLengh_air / 2, 0, 0);
+          VM.scene.add(VM.objGroup);
+          VM.Loadover--;
+          oo = null;
+          VM.MmovL = VM.objLength / 2;
+          VM.isLoading = false;//进度gif
+          console.timeEnd("modeltime")
+          VM.initObject(VM.objLength / 2);//机柜位置排列参考，在容量云图中所创建的立体模型位置排列
+          console.time("animationtime")
+          VM.animation('initModel');//动画
+          console.timeEnd("animationtime")
+          console.timeEnd("alltime")
+        }, VM.onProgress, VM.onError);
+        materials = null;
+        objLoader = null;
+      });
+      mtlLoader_air = null;
+    },
+    preLoadNormalCabinet() {
+      const VM = this;
+      console.time("jg_02");
+      if (VM.obj_jg_02) {
+        const oo = VM.obj_jg_02.clone();
+        if (!VM.is_qt) {
+          VM.changeMaterial(oo);
+        }
+        var objLengh = 0;
+        for (var i = 0; i < VM.cubeArry.length; i++) {
+          objLengh = objLengh + VM.cal_model_length(i);
+
+          VM.cubeArry[i]['x'] = objLengh;
+          VM.cubeArry[i + 1]['x'] = objLengh;
+          if (VM.cubeArry[i].width !== 1) {
+            var obj_clone_normal = oo.clone();
+            var Jigui_01_normal = obj_clone_normal.getObjectByName('Jigui_01');
+            var Jigui_02_normal = obj_clone_normal.getObjectByName('Jigui_02');
+            VM.cube[i] = Jigui_01_normal;
+            VM.cube[i + 1] = Jigui_02_normal;
+            obj_clone_normal.position.set(objLengh, 0, 0);
+            VM.objGroup.add(obj_clone_normal);
+            // VM.set_line_geometry(obj_clone,{x:objLengh - VM.half_ll - VM.objSingleWidth ,y:0,z:0})
+          }
+          i++;//这个很重要，不然会重读计算
+        }
+        VM.objLength = objLengh;
+      }
+      console.timeEnd("jg_02");
+    },
+    //预加载前门
+    preLoadDoorFront() {
+      const VM = this;
+      if (VM.obj_men_01) {
+        console.time("men_01");
+        const oo = VM.obj_men_01;
+        let obj_clone_front = oo.clone();
+        if (!VM.is_qt) {
+          VM.changeMaterial(obj_clone_front);
+          VM.changeDevMaterialOpacity(obj_clone_front, 'Kehua_logo_02', {isTransparent: true});//logo
+          VM.changeDevMaterialOpacity(obj_clone_front, 'boli_01', {isTransparent: true, viewFlag: 1});//玻璃
+          VM.changeDevMaterialOpacity(obj_clone_front, 'boli_02', {isTransparent: true, viewFlag: 1});//玻璃
+          VM.changeDevMaterialOpacity(obj_clone_front, 'Rectangle058', {isTransparent: true, viewFlag: 1});//门框四周
+          VM.changeDevMaterialOpacity(obj_clone_front, 'Box314', {isTransparent: true, viewFlag: 1});//门框上面
+          VM.changeDevMaterialOpacity(obj_clone_front, 'Box345', {isTransparent: true, viewFlag: 1});//门框底部
+          VM.changeDevMaterialOpacity(obj_clone_front, 'Box342', {isTransparent: true, viewFlag: 1});//门框上面靠里
+        }
+        obj_clone_front.position.set(0 - VM.objLength / 2 - VM.half_ll - 9, 0, 0);
+        // if (VM.viewFlag !== 1 && VM.viewFlag !== 2) {
+        // if (VM.viewFlag !== 1) {
+        VM.scene.add(obj_clone_front);
+        // VM.set_line_geometry(oo,{x:0 - objLengh / 2 - VM.half_ll - 9,y:0,z:0});
+        // }
+        VM.Loadover--;
+        console.timeEnd("men_01");
+      }
+    },
+    //预加载后门
+    preLoadDoorBack() {
+      const VM = this;
+      if (VM.obj_men_02) {
+        console.time("men_02");
+        const oo = VM.obj_men_02;
+        let obj_clone_back = oo.clone();
+        if (!VM.is_qt) {
+          VM.changeMaterial(obj_clone_back);
+          VM.changeDevMaterialOpacity(obj_clone_back, 'Kehua_logo_01', {isTransparent: true});
+          VM.changeDevMaterialOpacity(obj_clone_back, 'boli_01', {isTransparent: true, viewFlag: 1});//玻璃
+          VM.changeDevMaterialOpacity(obj_clone_back, 'boli_02', {isTransparent: true, viewFlag: 1});//玻璃
+          VM.changeDevMaterialOpacity(obj_clone_back, 'Rectangle028', {isTransparent: true, viewFlag: 1});//门框四周
+          VM.changeDevMaterialOpacity(obj_clone_back, 'Box021', {isTransparent: true, viewFlag: 1});//门框上面
+          VM.changeDevMaterialOpacity(obj_clone_back, 'Box280', {isTransparent: true, viewFlag: 1});//门框底部
+          VM.changeDevMaterialOpacity(obj_clone_back, 'Box066', {isTransparent: true, viewFlag: 1});//门框上面靠里
+        }
+        obj_clone_back.position.set(VM.objLength / 2 + VM.half_rr + 9, 0, 0);
+        // if (VM.viewFlag !== 1 && VM.viewFlag !== 2) {
+        // if (VM.viewFlag !== 1) {
+        VM.scene.add(obj_clone_back);
+        // VM.set_line_geometry(oo,{x:objLengh / 2 + VM.half_rr + 9,y:0,z:0});
+        // }
+        VM.Loadover--;
+        console.timeEnd("men_02");
+      }
+    },
+    // 预加载空调
+    preLoadCabinetAir() {
+      const VM = this;
+      if (VM.obj_jg_03) {
+        console.time("jg_03");
+        const oo = VM.obj_jg_03;
+        let obj_jg_03 = oo.clone();
+        var objLengh_air = 0;
+        if (!VM.is_qt) {
+          VM.changeMaterial(obj_jg_03);
+        }
+        for (var i = 0; i < VM.cubeArry.length; i++) {
+          objLengh_air = objLengh_air + VM.cal_model_length(i);
+          if (VM.cubeArry[i].width === 1) {//两排只要有一个是空调柜,另一个一定是空调柜
+            var obj_clone_air = obj_jg_03.clone();
+
+            var Jigui_01_air = obj_clone_air.getObjectByName('Jigui_01');
+            var Jigui_02_air = obj_clone_air.getObjectByName('Jigui_02');
+            if (VM.viewFlag === 2) {
+              // Jigui_01.scale.set(1,VM.objCabinetHeightCoe,1);//将模型进行一个拉伸
+              // Jigui_02.scale.set(1,VM.objCabinetHeightCoe,1);//将模型进行一个拉伸
+              // VM.changeDevMaterialOpacity(obj_clone,'Box001');//机柜底座
+            }
+            VM.cube[i] = Jigui_01_air;
+            VM.cube[i + 1] = Jigui_02_air;
+            obj_clone_air.position.set(objLengh_air, 0, 0);
+            VM.objGroup.add(obj_clone_air);
+            // VM.set_line_geometry(obj_clone,{x:objLengh_air,y:0,z:0});
+          }
+          i++;
+        }
+        VM.objLengh_air = objLengh_air;
+        VM.objGroup.position.set(0 - objLengh_air / 2, 0, 0);
+        VM.scene.add(VM.objGroup);
+        VM.Loadover--;
+        VM.MmovL = VM.objLength / 2;
+        console.timeEnd("jg_03");
+        VM.isLoading = false;//进度gif
+        VM.initObject(VM.objLength / 2);//机柜位置排列参考，在容量云图中所创建的立体模型位置排列
+        VM.MmovL = VM.objLength / 2;
+        console.time("animationtime");
+        VM.animation('initModel');//动画
+        console.timeEnd("animationtime");
+        console.timeEnd("alltime");
+      }
+    },
+    // 地板
+    loadCabinetFloor() {
+      const VM = this;
+      var newobjLengh = 0;
+      for (let mm = 0; mm < VM.cubeArry.length; mm++) {
+        const arrLength = VM.cubeArry.length;
+        newobjLengh += VM.objBottomWidth;
+        for (let kk = -4; kk <= 7; kk++) {//每一个循环12次，负值开始是因为要设置负值
+          var num = 1;
+          if (mm === arrLength - 2) {//最后一个多添加机柜数量一半小格
+            num = arrLength / 2;
+          }
+          for (let jj = 0; jj < num; jj++) {
+            // var geometry = new THREE.BoxBufferGeometry( VM.objBottomWidth, VM.objBottomHeight, VM.objBottomLength);// 体
+            var geometry = new THREE.PlaneBufferGeometry(VM.objBottomWidth, VM.objBottomHeight, VM.objBottomLength);
+            var material = new THREE.MeshBasicMaterial({
+              color: 0x377e8a,
+              side: THREE.DoubleSide,
+              transparent: true,
+              opacity: 0.3,
+              // blendDstAlpha: 0.3,
+            });
+            var plane = new THREE.Mesh(geometry, material);
+            var line = new THREE.LineSegments(
+              new THREE.EdgesGeometry(geometry),
+              new THREE.LineBasicMaterial({
+                  color: 0x3f4763,
+                  // transparent: VM.isTransparent,
+                  // opacity: (VM.isTransparent ? 0.3 : 1),
+                  // blendDstAlpha: (VM.isTransparent ? 0.3 : 1),
+                }
+              ));
+            line.position.set(
+              newobjLengh - VM.objBottomWidth * (arrLength / 2 - jj),
+              // - VM.objBottomHeight / 2, // 体的高度
+              0,
+              (kk - 1.5) * VM.objBottomHeight
+            );
+            plane.position.set(
+              newobjLengh - VM.objBottomWidth * (arrLength / 2 - jj),
+              // - VM.objBottomHeight / 2, // 体的高度
+              0,
+              (kk - 1.5) * VM.objBottomHeight
+            );
+            plane.rotateX(Math.PI / 2);
+            line.rotateX(Math.PI / 2);
+            VM.scene.add(plane);
+            VM.scene.add(line);
+          }
+        }
+        mm++;
+      }
+    },
+    // 加载其他视图
+    loadOtherView(boo) {
+      // console.log('loadOtherView:' + boo);
+      if (!this.is_qt) {
+        this.initCameraDev();
+        this.init_heatmap_four_mesh();
+        this.init_three_heat_map();
+      }
+    },
+    // 液晶屏缩放
+    LCDScale() {
+      if (this.LCD === 1) {//液晶屏上展示pc端代码--大屏展示:放大2倍，缩小0.5倍
+        $("#main_model canvas").css({
+          'transform-origin': 'left top',
+          'transform': 'scale(0.5,0.5)',
+          '-moz-transform': 'scale(0.5,0.5)',
+          '-webkit-transform': 'scale(0.5,0.5)',
+          '-ms-transform': 'scale(0.5,0.5)',
+          '-o-transform': 'scale(0.5,0.5)'
+        });
+      }
+    },
+    // 清楚一些材质
+    clearMtl(loader) {
+      this[loader.data_name] = null;
+      this[loader.children.data_name] = null;
+    },
+    // 材质加载的调用方法
+    webGlLoadPromise(){
+      const VM = this;
+      VM.loadMaterial(VM.loadJPG);
+      VM.loadMaterialNew(VM.jg_02).then(() => {
+        return VM.loadObjectNew(VM.jg_02)
+      }).then(() => {
+        return VM.loadMaterialNew(VM.men_01);
+      }).then(() => {
+        return VM.loadObjectNew(VM.men_01);
+      }).then(() => {
+        return VM.loadMaterialNew(VM.men_02);
+      }).then(() => {
+        return VM.loadObjectNew(VM.men_02);
+      }).then(() => {
+        return VM.loadMaterialNew(VM.jg_03);
+      }).then(() => {
+        return VM.loadObjectNew(VM.jg_03);
+      }).then(() => {
+        VM.ThreeDinterval();//设置定时器，实时刷新数据
+        VM.deal_color_list();
+        VM.deal_cap_color_list();
+      });
     }
   },
   created() {
     var VM = this;
-    this.isWebGl = WEBGL.isWebGLAvailable();//是否支持webgl
-    if (this.isWebGl) {
-      // this.loadMaterial(this.loadMTL);//暂时先不主动加载MTL对象
-      this.loadMaterial(this.loadJPG);
-      // this.texture0 = this.MtextureLoad('cabinet_60.jpg');//普通机柜贴图
-      // this.texture1 = this.MtextureLoad('fair.jpg');//空调贴图
-      // this.texture_disabled_big = this.MtextureLoad('fgrey_big.jpg');//灰色贴图 大
-      // this.texture_disabled_small = this.MtextureLoad('fgrey_small.jpg');//灰色贴图 小
-    }
     alarmLevel_get_ajax(VM).then(function (data) {
       $.each(data, function (key, value) {
         VM.alarmL_color[value.level] = value.color || defaultAlarmLevelColorList(value.level)
       });
     });
-    //若是判定未不支持添加1秒之后再次验证
-    setTimeout(()=>{
-      if (!VM.isWebGl){
-        VM.isWebGl = WEBGL.isWebGLAvailable();//是否支持webgl
-        if (VM.isWebGl) {
-          VM.loadMaterial(VM.loadJPG);
-          VM.$nextTick(() => {
-            VM.ThreeDinterval();//设置定时器，实时刷新数据
-          });
-        }
-      }
-    },1000)
   },
   mounted: function () {
     var VM = this;
     var idn = $("#main_model");
     VM.Dwidth = idn.width();
     VM.Dheight = idn.height();
-    VM.ThreeDinterval();//设置定时器，实时刷新数据
-    VM.$nextTick(()=>{
-      VM.deal_color_list();
-      VM.deal_cap_color_list();
-    })
-    // VM.init_heatmap();
+    VM.isWebGl = WEBGL.isWebGLAvailable();//是否支持webgl
+    if (VM.isWebGl) {
+      VM.webGlLoadPromise();
+    }
+    //若是判定未不支持添加1秒之后再次验证
+    setTimeout(() => {
+      if (!VM.isWebGl) {
+        VM.isWebGl = WEBGL.isWebGLAvailable();//是否支持webgl
+        VM.webGlLoadPromise();
+      }
+    }, 1000);
     VM.main_ico_3d = $('#main_ico_3d');
+    VM.hasEnterMounted = true;
   },
   activated: function () {
     this.activatedBoo = true;
-    this.render_setSize()
+    if (!this.hasEnterMounted) {//防止第一次进入的时候没有loading 提示
+      this.render_setSize()
+    }
   },
   deactivated: function () {
     this.activatedBoo = false;
+    this.devShow = false;
   },
   beforeDestroy: function () {
     this.clearFun();
