@@ -24,7 +24,7 @@
       </div>
         <!--容量温度柱图参考开始-->
       <div id="color_cap" class="color_list" v-show="viewFlag === 2 || viewFlag === 6" >
-        <div id="cap_text" class="color_top_text">{{viewFlag === 6 ? '温度（℃）': '容量（%）'}}</div>
+        <div id="cap_text" class="color_top_text" v-text="capTypeText"></div>
         <div id="cap_num"></div>
       </div>
 <!--        容量温度柱图参考结束-->
@@ -77,7 +77,7 @@
     <mainPopWin idn="main_three_pop" v-on:showChange="showChange" v-bind="{showFlag:showFlag,box_index:box_index,cab_type:0,dev_index:0}"></mainPopWin>
     <!--<mobileSoftKey v-if="LCD"></mobileSoftKey>-->
 
-    <popWindow idn="main_cabinet_message" buttonNum="0" v-bind:title="cabinet_pop_title+'详细信息'" v-bind:close1-click="main_normal_close">
+    <popWindow idn="main_cabinet_message" buttonNum="0" :title="cabinet_pop_title + textDetail" v-bind:close1-click="main_normal_close">
       <ul class="main_cabinet_pop" v-bind:class="(pc_data.length===0)?'main_cabinet_popS':''">
 
         <li class="main_cabinet_li">
@@ -88,12 +88,12 @@
                 <thead>
                 <tr>
                   <td colspan="3" v-bind:class="(kl=='cold')?'mC_yel_bg':'mC_green_bg'">
-                    {{(kl=='cold')?'冷通道':'热通道'}}
+                    {{(kl=='cold')? textCold : textHot}}
                   </td>
                 </tr>
                 </thead>
                 <tbody>
-                <tr><td>{{AveEnable==1 ? '':'设备名称'}}</td><td>温度(℃)</td><td>湿度(%RH)</td></tr>
+                <tr><td>{{AveEnable==1 ? '': textDevType}}</td><td><span>温度</span>(℃)</td><td><span>湿度</span>(%RH)</td></tr>
                 <tr v-if="el.length===0"><td colspan="3" style="text-align:center">暂无数据</td></tr>
                 <tr v-for="(vv,kk) in el">
                   <td v-bind:title="vv.name_f">{{vv.name_f}}</td>
@@ -113,9 +113,9 @@
                 <td>
                   <ul class="mCabmin_ul_pd" v-for="(el,kl) in pc_data">
                     <li class="mCabmin_pd_title" v-bind:title="el.title">{{el.title}}</li>
-                    <li>电流(A):{{el.cur}}</li>
-                    <li>电压(V):{{el.vol}}</li>
-                    <li>功率(kW):{{el.power}}</li>
+                    <li><span>电流</span>(A):{{el.cur}}</li>
+                    <li><span>电压</span>(V):{{el.vol}}</li>
+                    <li><span>功率</span>(kW):{{el.power}}</li>
                   </ul>
                 </td>
               </tr>
@@ -127,9 +127,9 @@
       </ul>
     </popWindow>
     <popWindow idn="camera_dev_message" buttonNum="0"
-               :title="pop_camera_dev.name_f + '详细信息'">
+               :title="pop_camera_dev.name_f + textDetail">
       <div class="alarm_linkage_table myPoPWin">
-        {{$t('lang._EMGENERAL_DEVICE_STATUS_')}}{{$t('lang._COMM_SEMICOLON_')}}<p v-html="deal_dev_status(pop_camera_dev.is_alarm) || $t('lang._RS_PUE_NO_DATA_')">
+        <span>设备状态</span>：<p v-html="deal_dev_status(pop_camera_dev.is_alarm) || textNodata">
         </p>
       </div>
     </popWindow>
