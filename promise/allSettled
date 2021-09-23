@@ -1,0 +1,46 @@
+const allSettled = function(arr) {
+    return new Promise(function(resolve, reject) {
+      if (Object.prototype.toString.call(arr) !== '[object Array]') {
+        return reject(
+          new TypeError(
+            typeof arr +
+            ' ' +
+            arr +
+            ' ' +
+            ' is not iterable(cannot read property Symbol(Symbol.iterator))'
+          )
+        );
+      }
+      let args = Array.prototype.slice.call(arr);
+      if (args.length === 0) return resolve([]);
+      let arrCount = args.length;
+
+      function resolvePromise(index, value) {
+        if (typeof value === 'object') {
+          let then = value.then;
+          if (typeof then === 'function') {
+            then.call(
+              value,
+              function(val) {
+                args[index] = { status: 'fulfilled', value: val };
+                if (--arrCount === 0) {
+                  resolve(args);
+                }
+              },
+              function(e) {
+                args[index] = { status: 'rejected', reason: e };
+                if (--arrCount === 0) {
+                  resolve(args);
+                }
+              }
+            );
+          }
+        }
+      }
+
+      for (let i = 0; i < args.length; i++) {
+        resolvePromise(i, args[i]);
+      }
+    });
+  };
+export {allSettled}
