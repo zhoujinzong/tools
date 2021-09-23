@@ -1,0 +1,67 @@
+
+/**
+ * @Author：Administrator
+ * @Date：2021-03-29 14:41:09
+ * @LastEditTime：2021-03-29 14:41:09
+ * @LastEditors：2021-03-29 14:41:09
+ * @Description： 需要加载的3D资源文件以及设定models的列表
+ *              loaders: 需要加载的所有文件，页面展示的可选项名字为当前资源文件的名字
+ *              models: 当前的模型库，模型库对应配置去取loaders已加载的资源
+ * @FilePath：src\json\configThreeD\configJSON.js
+ */
+export default {
+  loaders: {
+    logoImgObj: {
+      type: 'img',
+      list: ['logo_hik.png', 'logo_kh.png','logo_kh_transparent.png', 'logoping.png','logoping_huiyun.png','logoUserCustom.png']
+    },// logo名字
+    // logoPingLeftObj: {
+    //   type: 'img',
+    //   list: ['logo_ping_left_huiyun.png','logoPingLeftUserCustom.png']
+    // },// PC-门左侧logo名字
+    // logoPingRightObj: {
+    //   type: 'img',
+    //   list: ['logo_ping_right.png','logoPingRightUserCustom.png']
+    // },// PC-门右侧logo名字
+    glassImgObj: {
+      type: 'img',
+      list: ['kh_logo.jpg', 'kh_logo_1.jpg']
+    },// 玻璃门logo
+    screenImgObj: {
+      type: 'img',
+      list: ['ping.jpg', 'Pingban_view.png', 'mdc_jk_pm.jpg','PC_ping.png','screenUserCustom.png']
+    },// 液晶屏展示
+    guardImgObj: {
+      type: 'img',
+      list: ['menjin.jpg']
+    },// 门禁贴图
+    cabImgObj: {
+      type: 'img',
+      list: ['back_30.jpg', 'front_30.jpg', 'back_40.jpg', 'front_40.jpg', 'back_60.jpg', 'front_60.jpg', 'back_80.jpg', 'front_80.jpg',]
+    },// 机柜贴图，全柜与半柜
+    disCabImgObj: {
+      type: 'img',
+      list: ['dis_30.jpg', 'dis_40.jpg','dis_60.jpg','dis_80.jpg']
+    },// 无效柜贴图，全柜与半柜
+    doorObj: {
+      type: 'obj',
+      list: ['men_01', 'men_02', 'men_03', 'men_04']  //men_01、men_02普通模型前后门；men_03、men_04高端模型前后门
+    },// 所有门列表
+    cabinetObj: {
+      type: 'obj',
+      list: ['jg_02', 'jg_03', 'jg_30', 'jg_40', 'jg_60','jg_80']
+    },// 所有机柜列表
+    airObj: {
+      type: 'obj',
+      list: ['kong_30','kong_40','kong_60','kong_80']
+    },// 所有空柜列表，当做柱子
+    coldObj: {
+      type: 'obj',
+      list: ['ltd_30','ltd_40','ltd_60','ltd_80']
+    },// 所有冷通道列表
+    secObj: {
+      type: 'obj',
+      list: ['af_qiang', 'af_qiu', 'af_temp', 'af_smoke']
+    },// 所有安防设备列表
+  }
+  }
