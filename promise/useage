@@ -1,0 +1,12 @@
+allSettled([...all]).then(res => {
+      let index = 0;// 记录每次循环已经处理好的数组，取对应需要处理的一些数组内容
+      res = res.map(item=>item.value)
+      allNameArr.forEach((arr, i) => {
+        targetObj[keyArr[i]] = this.getLoadSource(res.slice(index, index + arr.length), arr);
+        index += arr.length;// 加上之前已经处理好的数组数量
+      });
+      return Promise.resolve(targetObj);
+    }).catch(err => {
+      console.log(err);
+      return Promise.resolve(targetObj);
+    })
