@@ -1,0 +1,136 @@
+// 加载资源的公共方法
+export const loadSource = {
+  /**
+   * 加载一些模型与贴图
+   */
+  webGlLoadSource() {
+    // 加载模型，可选项与key值为资源名字
+    // all 为当前所需要加载的所有资源名字列表
+    // allNameArr 为当前所需要加载的所有资源的名字，作为key值和可选项
+    // keyArr 为当前可设置的参数分类对应data对象的key值，作为可选项的列表
+    let configLoaders  = configJSON.loaders;
+    const themeLoaders = configJSON[THEME];// 主题需要加载处理的模型,default 主题需要特殊判断一下
+    if (themeLoaders){
+      configLoaders = Object.assign({...configLoaders},{...themeLoaders});
+    }
+    let basicURL = "/static/models/";// 模型、贴图根路径，这里需要区分一下打包环境和开发环境，因为打包优化，公共资源提到了common目录下
+    if (process.env.NODE_ENV === prodEnv.NODE_ENV.replaceAll("\"","")){// 注意这里内容需要把引号删除，不然会出现不匹配的问题
+      basicURL = "/common/models/";
+    }
+    let all = [], allNameArr = [], keyArr = Object.keys(configLoaders), targetObj = {};
+    for (let key in configLoaders) {
+      let eachNameArr = [];
+      const data = configLoaders[key];
+      const imgArr = data.list.map(item => {
+        let newItem = item;
+        const newObj = this.startWithTheme(newItem);
+        if (newObj.boo){// 名字有根据主题设置，那key值需要去掉主题名字，注意有下划线
+          newItem = newObj.name;
+        }
+
+        // 这个只是key值的变化，作为加载模型的名字还是不变的，比如设定了 hik_men_01, 加载的模型为 hik_men_01，key值为 men_01
+        eachNameArr.push(newItem.includes('.') ? newItem.substr(0, newItem.indexOf('.')) : newItem);
+        switch (data.type) {
+          case 'img':
+            return this.loadTexture(item,basicURL + 'maps/');
+          case 'obj':
+            return this.loadObj(item,basicURL);
+        }
+      });
+      all = [...all, ...imgArr];
+      allNameArr.push(eachNameArr)
+    }
+    return allSettled([...all]).then(res => {
+      let index = 0;// 记录每次循环已经处理好的数组，取对应需要处理的一些数组内容
+      res = res.map(item=>item.value)
+      allNameArr.forEach((arr, i) => {
+        targetObj[keyArr[i]] = this.getLoadSource(res.slice(index, index + arr.length), arr);
+        index += arr.length;// 加上之前已经处理好的数组数量
+      });
+      return Promise.resolve(targetObj);
+    }).catch(err => {
+      console.log(err);
+      return Promise.resolve(targetObj);
+    })
+  },
+  /**
+   * 处理当前加载结束之后的资源文件，对应成对象
+   * @param arr 资源文件列表
+   * @param nameArr 资源名字列表
+   * @returns {object}
+   */
+  getLoadSource(arr, nameArr) {
+    let object3D = {};
+    arr.forEach((item, index) => {
+      object3D[nameArr[index]] = item;
+    });
+    return object3D;
+  },
+  /**
+   *  异步加载方法开始
+   */
+  /**
+   * 加载图片贴图
+   * @param name 图片名字
+   * @param path 资源路径
+   * @returns {Promise<unknown>}
+   */
+  loadTexture(name,path) {
+    return new Promise((resolve,reject) => {
+      const mtlLoader = new THREE.TextureLoader();
+      mtlLoader.setPath(path);
+      mtlLoader.load(name, (texture) => {
+        resolve(texture);
+      }, this.onProgress, (xhr)=>{this.onError(xhr,reject)});
+    })
+  },
+  /**
+   * 加载mtl材质后加载obj
+   * @param name 资源文件名字， obj与mtl名字请命名为一致
+   * @param path 资源路径
+   * @returns {Promise<unknown>}
+   */
+  loadObj(name,path) {
+    return new Promise((resolve,reject) => {
+      const mtlLoader = new MTLLoader();
+      mtlLoader.setPath(path);
+      mtlLoader.load(name + ".mtl", (materials) => {
+        materials.preload();
+        const objLoader = new OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.setPath(path);
+        objLoader.load(name + ".obj", (oo) => {
+          resolve(oo)
+        }, this.onProgress, (xhr)=>{this.onError(xhr,reject)});
+      }, this.onProgress, (xhr)=>{this.onError(xhr,reject)});
+    })
+  },
+  /**
+   * 加载中。。。
+   * @param xhr
+   */
+  onProgress(xhr) {
+  },
+  /**
+   * 加载错误
+   * @param xhr
+   */
+  onError(xhr,reject) {
+    reject(xhr)
+  },
+  /**
+   * 是否以主题开始的命名
+   */
+  startWithTheme(name){
+    let aName = '',bName = '',boo = false
+    if (THEME){
+      bName = name.slice(0,THEME.length);// 名字前半部分
+      aName = name.slice(THEME.length + 1);// 名字后半部分 +1 是因为有下划线
+      boo = bName === THEME;
+    }
+    return {boo: boo, name: aName};
+  }
+  /**
+   * 异步加载方法结束
+   */
+}
