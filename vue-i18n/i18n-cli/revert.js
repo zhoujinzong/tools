@@ -1,4 +1,3 @@
-```javascript
 require('colors');
 const path = require('path');
 const fs = require('fs');
@@ -120,4 +119,3 @@ module.exports.revert = (src, options) => {
 
 };
 
-```
