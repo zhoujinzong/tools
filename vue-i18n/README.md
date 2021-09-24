@@ -1,7 +1,7 @@
 ### 国际化操作方法
 前端提取文本转换为key值使用的插件地址：
 https://gitee.com/thesadboy/vue-i18n-generator
-
+(注意这里要下指定版本 2.0.9，不然会出一些问题)
 npm下来后一般会放在
 `C:\Users\Administrator\AppData\Roaming\npm\node_modules\vue-i18n-cli` 中
 用i18n-cli中的三个文件替换对应的文件。
