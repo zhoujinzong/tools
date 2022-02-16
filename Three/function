@@ -1,0 +1,53 @@
+/***
+ * 判断是否到了滚动边缘
+ * @param e 当前事件
+ * @param isTop 是否是上下滚动
+ */
+export const isOverScroll = (e,isTop = false) =>{
+  let key = isTop ? 'scrollTop': 'scrollLeft',
+    scroll = isTop ? 'scrollHeight' : 'scrollWidth',
+    all = isTop ? 'clientHeight' : 'clientWidth',
+    obj = {start: false, end: false};
+  // e.preventDefault();
+  // e.stopPropagation();
+  if (e.target){
+    console.log(key,e.target[key]);
+    console.log(scroll,e.target[scroll]);
+    console.log(all,e.target[all]);
+    console.log('end',e.target[key] + e.target[scroll]);
+    obj.start = e.target[key] === 0;// 初始位置
+    obj.end = e.target[key] + e.target[scroll] === e.target[all];// 结束位置，添加一点点的计算差值
+  }
+  console.log(JSON.stringify(obj));
+  if (!obj.start || !obj.end){// 如果不是到底或者到顶部，那得阻止一下冒泡与默认事件
+    if (e.preventDefault){
+      console.log('preventDefault');
+      e.preventDefault();
+      e.stopPropagation();
+    } else {// IE
+      e.cancelBubble = true;
+      e.returnValue = false;
+    }
+  }else {
+    console.log('aaaaaaaaaaa')
+  }
+  return obj
+};
+export const mouseScroll = ({e, tag, index, className,delta}) =>{
+  // firefox需要用DOMMouseScroll才能响应
+  if (delta) {
+    isOverScroll(e);
+    let tDom = e.target, coe = 1;
+    if (typeof tDom.className !== 'string' || !tDom.className.includes(className)) {// 非在最外层滚动
+      tDom = document.getElementsByClassName(className)[index];
+    }
+    if (getExplorerInfo().type === 'Firefox') {// 火狐浏览器的滚动量默认为10，滚动方向还是相反的
+      coe = -15
+    }
+    // e.wheelDelta || e.detail 滚动方向
+    tDom && (tDom.scrollLeft += -(e.wheelDelta || e.detail) * coe);
+  } else {
+    e.target.parentNode.children[tag] && (e.target.parentNode.children[tag].scrollLeft = e.target.scrollLeft);
+    isOverScroll(e);
+  }
+};
