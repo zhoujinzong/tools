@@ -314,3 +314,15 @@ function ReverseObj(obj){
         if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
       return fmt;
     };
+// 文件名字和文件类型获取
+export const getFileNameAType = (file) => {
+    let name = '',fileType = ''
+    if (file){
+        name = file.slice(0, file.lastIndexOf('.')) || '';// 文件名字切割
+        fileType = file.slice(file.lastIndexOf('.') + 1).toLowerCase() || '';// 文件类型切割
+    }
+    return {
+        name,
+        fileType
+    }
+}
