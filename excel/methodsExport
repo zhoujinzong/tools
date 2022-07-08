@@ -1,0 +1,110 @@
+   // 导出函数
+            exportFun() {
+                let {json = [], header = {}, domId, fName, sName, AZArr = []} = this.exportOptions;
+
+                let book = null;
+                // 如果传入需要直接导出整个表格的东西
+                if (domId) {
+                    let dom = document.getElementById(domId);
+                    if (dom.tagName !== 'table') {// 如果不是表格，那就去找一下子类
+                        dom = dom.querySelector('table')
+                    }
+                    book = XLSX.utils.table_to_book(dom);
+                } else {
+                    // 实例化一个工作簿
+                    book = XLSX.utils.book_new()
+                    json = this.dealArray(lodash.cloneDeep(json));
+                    // 删掉一些无用信息
+                    json.forEach(item => {
+                        delete item.$row
+                    })
+                    // console.log('json', json);
+                    json.forEach((item, index) => {
+                        const headK = Object.keys(header), headV = Object.values(header);
+                        const data = this.handleHeader([item], header);
+                        let expectHead = {}, expectItem = [];// 额外的数据，插入最后
+                        data.forEach(val => {
+                            Object.keys(val).forEach(key => {
+                                if (lodash.isObject(val[key])) {// 如果是对象，单独处理
+                                    expectHead = Array.isArray(val[key]) ? val[key][0] : val[key];
+                                    delete val[key];
+                                } else {// 删除一些不在header定义的属性值
+                                    !headV.includes(key) && delete val[key];
+                                }
+                            })
+                        })
+                        Object.keys(item).forEach(key => {
+                            if (lodash.isObject(item[key])) {// 如果是对象，单独处理
+                                expectItem = item[key];
+                                delete item[key]
+                            }
+                        })
+
+                        let sheet = XLSX.utils.json_to_sheet(data);
+                        const headArr = [];// 列名字
+                        // /^\d+$/ 找出符合数字的内容，找到最大行数
+                        let max = Number(lodash.max(Object.keys(sheet).map(key => {
+                            const match = key.match(/\d/);// 找出数字
+                            const num = match ? match[0] : 0
+                            if (num) {
+                                headArr.push(key.substring(1, key.indexOf(num)))
+                            }
+                            return num
+                        })))
+                        max += 2;// 中间空一行
+
+                        const refs = sheet['!ref'].split(':');// 范围
+                        let demoObj = {t: 's', v: ''}, expectObj = {}, lastRef = refs[1];
+
+                        // 第二组数组的表头
+                        Object.keys(expectHead).map((key, ki) => {
+                            const o = lodash.cloneDeep(demoObj);
+                            o.v = expectHead[key];
+                            expectObj[AZArr[ki] + max] = o;
+                        })
+                        // 对应内容
+                        expectItem.forEach((item, ii) => {
+                            Object.keys(expectHead).map((key, ki) => {
+                                const o = lodash.cloneDeep(demoObj), index = AZArr[ki] + (max + ii + 1);
+                                o.v = item[key];
+                                expectObj[index] = o;// +1 是因为上面有一个头像
+                                lastRef = index;// 一致重复赋值，他会取最后一个
+                            })
+                        })
+
+                        sheet = lodash.assign(sheet, expectObj)
+                        sheet['!ref'] = refs[0] + ':' + lastRef
+                        XLSX.utils.book_append_sheet(book, sheet, sName + (index + 1)); // 每张表添加到工作簿中
+                    })
+
+                }
+
+                // 写入文件，直接触发浏览器的下载
+                XLSX.writeFile(book, fName + '.xlsx')
+
+            },
+            // 处理当前的表头与名字
+            // 表头某一个属性值如果是对象代表要去变量去子类，作为同一个sheet
+            handleHeader(list, header) {
+                return list.map(item => {
+                    const obj = {};
+                    for (const key in item) {
+                        if (header[key]) {
+                            if (lodash.isArray(item[key]) && lodash.isObject(header[key])) {// 代表数据是数组，额外表头是对象
+                                obj[key] = this.handleHeader([header[key]], header)
+                            } else {
+                                obj[header[key]] = item[key]
+                            }
+                        } else {
+                            obj[key] = item[key]
+                        }
+                    }
+                    return obj
+                })
+            },
+            // 不是数组的兼容处理
+            dealArray(data) {
+                // 非数组的话要转换成数组结构才可以，不然会出现数组类型不匹配的错误，因为只有一条的时候返回的是object
+                !Array.isArray(data) && (data = [data]);
+                return data
+            },
