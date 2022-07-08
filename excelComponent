@@ -1,0 +1,90 @@
+<template>
+    <div>
+        <input :ref="inputRef" type="file" :accept="'.'+ accept" v-show="false" @input="fileChange">
+    </div>
+</template>
+
+<script>
+    import {getFileNameAType, ifNullData} from "@/util/public";
+    import {computed} from "vue";
+    import {writeFileXLSX} from "xlsx";
+
+    const lodash = require('lodash');
+    const XLSX = require("xlsx");
+
+    export default {
+        name: "excelComponent",
+        props: {
+            // 导入时外部需要传入的内容
+            importRes: {
+                type: Object,
+                default: () => {
+                    return {}
+                }
+            },
+            // 导出时外部需要传入的内容
+            exportRes: {
+                type: Object,
+                default: () => {
+                    return {}
+                }
+            },
+            // 接收的文件类型，虽然没用，但是暂时预留一下
+            accept: {
+                type: String,
+                default: 'xlsx'
+            },
+            // 输入框的ref
+            inputRef: {
+                type: String,
+                default: 'excelFileInput'
+            }
+        },
+        setup(props, context) {
+            // header:
+            // {
+            //     'code' : '功能码',
+            //     'c2' : '起始地址',
+            //     point: {
+            //          'property' : '测点ID',
+            //         'remark' : '点描述',
+            //     },
+            // }
+            const importOptions = computed(() => {
+                const obj = {
+                    header: {},// 表头 {com: '指令'}
+                };
+                return lodash.assign(obj, props.importRes);
+            })
+            const exportOptions = computed(() => {
+                const obj = {
+                    json: [],// 表格数据JSON
+                    header: {},// 表头 {com: '指令'}
+                    domId: '',// 页面表格的domId
+                    fName: 'file',// 导出的文件名字
+                    sName: 'sheet',// 导出的文件sheet名
+                    AZArr: generateArrayUpper(),// 表头的列数默认A-Z，可支持传入
+                };
+                return lodash.assign(obj, props.exportRes);
+            })
+
+            // 生成A-Z数组
+            function generateArrayUpper() {
+                let arrGenerate = []
+                for (let i = 0; i < 26; i++) {
+                    arrGenerate.push(String.fromCharCode(65 + i));
+                }
+                return arrGenerate
+            }
+
+            return {
+                importOptions,
+                exportOptions,
+            }
+        },
+      }
+</script>
+
+<style scoped>
+
+</style>
