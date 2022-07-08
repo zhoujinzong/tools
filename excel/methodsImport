@@ -1,0 +1,119 @@
+        methods: {
+            // 导入函数
+            importFun() {
+                this.$refs[this.inputRef] && this.$refs[this.inputRef].click();// 主动执行一下点击
+            },
+            // 导入输入框文件发生变化
+            fileChange(e) {
+                const files = e.target.files;
+                if (files.length === 0) {// 没有文件
+                    return
+                }
+                const fileName = files[0]?.name || '';// 取第一个文件的名字，用作文件类型判断与协议模板重复判断
+                const {name, fileType} = getFileNameAType(fileName);
+                if (fileType !== this.accept) {// 文件类型不符
+                    this.$message.error('文件格式不符');
+                    e.target.value = '';// 置空
+                    return;
+                }
+                this.fileReader(files[0]);
+            },
+            // 文件读取
+            fileReader(file) {
+                const reader = new FileReader();  //FileReader : 读取文件内容
+                // 判断一下是否支持
+                let rABS = typeof FileReader !== "undefined" && (FileReader.prototype || {}).readAsBinaryString
+                if (rABS) {
+                    reader.readAsBinaryString(file)
+                } else {
+                    reader.readAsArrayBuffer(file)
+                }
+                let {header = {}} = this.importOptions;
+                reader.onload = async e => {  //onload:文件读取成功时触发
+                    let data = [];
+                    let result = e.target.result;
+                    if (!rABS) {
+                        result = new Uint8Array(result)
+                    }
+                    const workBook = await XLSX.read(result, {type: rABS ? 'binary' : 'array'}); //从电子表格字节中提取数据
+                    workBook.SheetNames.forEach(name => {
+                        let sheet = workBook.Sheets[name]
+                        let json = XLSX.utils.sheet_to_json(sheet, {
+                            raw: false,
+                            header: 1
+                        })
+                        data.push(json)
+                    })
+                    if (ifNullData(header)) {
+                        this.$emit('getImportData', data);
+                    } else {
+                        // 需要格式处理
+                        let tar = [], headKArr = Object.keys(header), headVArr = Object.values(header);// 最终数组
+                        const index = headVArr.findIndex(item => lodash.isObject(item));// 找到是对象那个下标
+                        const secK = headKArr[index];// 找到特殊key值
+                        let expK = [], expV = [];// 二级表头
+                        if (secK) {
+                            expK = Object.keys(headVArr[index]);
+                            expV = Object.values(headVArr[index]); // 取到二级的表头丢进去
+                            headKArr.splice(index, 1);// 删掉一下
+                            headVArr.splice(index, 1);
+                        }
+                        data.forEach((arr, index) => {
+                            // obj: 对象
+                            // level: 当前对象层级，用作处理一个sheet多个表头
+                            // interKArr: 传入header与当前导入的excel相同的头部每一项key值
+                            // interIArr：传入header与当前导入的excel相同的头部每一项在keyArr的下标
+                            let tarObj = {}, level = 0, interKArr = [], interIArr = [];
+                            if (secK) {// 有特殊key
+                                tarObj[secK] = [];
+                            }
+
+                            arr.forEach(item => {
+                                if (!ifNullData(item)) {// 可能存在空行
+                                    let obj = {};
+                                    const newItem = item.map(val => {
+                                        const vi = val.indexOf('(');
+                                        if (vi >= 0) {// 有括号的
+                                            return val.substring(0, val.indexOf('('))
+                                        }
+                                        return val
+                                    });// 删除掉一些单位处理
+                                    let vArr = headVArr, kArr = headKArr, lenLimit = 2;
+                                    if (level >= 1) {// 第二层的头部内容变子类
+                                        kArr = expK;
+                                        vArr = expV;
+                                    }
+                                    if (vArr.length <= lenLimit) {// 如果取的个数少于最小长度定位以下，那判断条件就要发生变化
+                                        lenLimit -= 1
+                                    }
+                                    const inter = lodash.intersection(newItem, vArr);// 取相同的名字集合
+                                    if (inter.length >= lenLimit) {// 超过多少个，代表当前这一行就是表头，下一行就是数据了
+                                        level++;
+                                        // 记录一下对应下标，用作下面数据对应
+                                        interIArr = inter.map(vv => {
+                                            interKArr.push(kArr[vArr.indexOf(vv)]);// 这里处理一下key值
+                                            return vArr.indexOf(vv)
+                                        });
+                                    } else if (level > 0) {// 处理过表头之后在取具体数据
+                                        // 通过下标遍历属性对应值
+                                        interIArr.forEach(index => {
+                                            if (level >= 2) {// 第二层一下都叫子类
+                                                obj[interKArr[index]] = item[index];
+                                            } else {
+                                                tarObj[interKArr[index]] = item[index];
+                                            }
+                                        })
+                                        // 如果是有一些子类，那就加入到子类中
+                                        if (!ifNullData(obj)) {
+                                            tarObj[secK].push(obj)
+                                        }
+                                    }
+                                }
+                            })
+                            tar.push(tarObj);
+                        })
+                        this.$emit('getImportData', tar);
+                    }
+                };
+            },
+        }
